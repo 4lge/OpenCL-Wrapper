@@ -1,8 +1,10 @@
 #pragma once
 
+
+
 #define WORKGROUP_SIZE 64 // needs to be 64 to fully use AMD GPUs
 //#define PTX
-//#define LOG
+#define LOG
 
 // https://github.com/KhronosGroup/OpenCL-Headers
 // https://github.com/KhronosGroup/OpenCL-CLHPP
@@ -284,6 +286,8 @@ private:
 	cl::Program cl_program;
 	cl::CommandQueue cl_queue;
 	bool exists = false;
+  string c_code;
+  string kernel_code;
 	inline string enable_device_capabilities() const { return // enable FP64/FP16 capabilities if available
 		string(info.patch_nvidia_fp16         ? "\n #define cl_khr_fp16"                : "")+ // Nvidia Pascal and newer GPUs with driver>=520.00 don't report cl_khr_fp16, but do support basic FP16 arithmetic
 		string(info.patch_legacy_gpu_fma      ? "\n #define fma(a, b, c) ((a)*(b)+(c))" : "")+ // some old GPUs have terrible fma performance, so replace with a*b+c
@@ -306,8 +310,11 @@ public:
 	inline Device(const Device_Info& info, const string& opencl_c_code=get_opencl_c_code()) {
 		print_device_info(info);
 		this->info = info;
+        this->c_code = opencl_c_code;
 		this->cl_queue = cl::CommandQueue(info.cl_context, info.cl_device); // queue to push commands for the device
-		cl::Program::Sources cl_source;
+        this->compile_kernel();
+        /*
+        cl::Program::Sources cl_source;
 		const string kernel_code = enable_device_capabilities()+"\n"+opencl_c_code;
 		cl_source.push_back({ kernel_code.c_str(), kernel_code.length() });
 		this->cl_program = cl::Program(info.cl_context, cl_source);
@@ -326,7 +333,8 @@ public:
 #ifdef PTX // generate assembly (ptx) file for OpenCL code
 		write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>()[0][0]); // save binary (ptx file)
 #endif // PTX
-		this->exists = true;
+        */
+  		this->exists = true;
 	}
 	inline Device() {} // default constructor
 	inline void barrier(const vector<Event>* event_waitlist=nullptr, Event* event_returned=nullptr) { cl_queue.enqueueBarrierWithWaitList(event_waitlist, event_returned); }
@@ -335,6 +343,39 @@ public:
 	inline cl::Program get_cl_program() const { return cl_program; }
 	inline cl::CommandQueue get_cl_queue() const { return cl_queue; }
 	inline bool is_initialized() const { return exists; }
+    inline void set_c_code(const string& c_code){
+      this->c_code = c_code;
+    }
+    inline string get_c_code(){
+      return this->c_code;
+    }
+    inline void set_kernel_code(const string& kernel_code){
+      this->kernel_code = kernel_code;
+    }
+    inline string get_kernel_code(){
+      return this->kernel_code;
+    }
+    inline void compile_kernel(){
+      cl::Program::Sources cl_source;
+      const string code = enable_device_capabilities()+"\n"+c_code+kernel_code;
+      cl_source.push_back({ code.c_str(), code.length() });
+      this->cl_program = cl::Program(info.cl_context, cl_source);
+      const string build_options = "-cl-std=CL"+info.opencl_c_version+" -cl-finite-math-only -cl-no-signed-zeros -cl-mad-enable"+(info.patch_intel_gpu_above_4gb ? " -cl-intel-greater-than-4GB-buffer-required" : "");
+#ifndef LOG
+      int error = cl_program.build({ info.cl_device }, (build_options+" -w").c_str()); // compile OpenCL C code, disable warnings
+      if(error) print_warning(cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device)); // print build log
+#else // LOG, generate logfile for OpenCL code compilation
+      int error = cl_program.build({ this->info.cl_device }, build_options.c_str()); // compile OpenCL C code
+      const string log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
+      // write_file("bin/kernel.log", log); // save build log
+      if((uint)log.length()>2u) print_warning(log); // print build log
+#endif // LOG
+      if(error) print_error("OpenCL C code compilation failed with error code "+to_string(error)+". Make sure there are no errors in kernel.cpp.");
+      else print_info("OpenCL C code successfully compiled.");
+#ifdef PTX // generate assembly (ptx) file for OpenCL code
+      write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>()[0][0]); // save binary (ptx file)
+#endif // PTX
+  }
 };
 
 template<typename T> class Memory {

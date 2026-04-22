@@ -1,4 +1,17 @@
+This is a fork of:
+
 # OpenCL-Wrapper
+
+Differences:
+
++ kernels and C library for kernels split into 'kernels/*.cl' and 'src/kernels.cpp' files.
++ 
++ example expanded to contain a Mersenne Twister (in kernels.cpp) and a uniform RNG kernel
+  (runif.cl)
+
+original README continues:
+
+
 OpenCL is the most powerful programming language ever created. Yet the OpenCL C++ bindings are cumbersome and the code overhead prevents many people from getting started.
 I created this lightweight OpenCL-Wrapper to greatly simplify OpenCL software development with C++ while keeping functionality and performance.
 
