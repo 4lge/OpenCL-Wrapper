@@ -63,7 +63,7 @@ int main() {
   device.compile_kernel();
 
   code = device.get_c_code()+device.get_kernel_code();
-  std::cout << "CL C code\n" << code << std::endl;
+  std::cout << "runif CL C code\n" << code << std::endl;
   
 
   Memory<float> real_output(device, N);

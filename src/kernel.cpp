@@ -60,13 +60,13 @@ uint mt_rand(__private uint* state, __private int* idx, __private uint* mt) {
        
 // Mersenne Twister scaled to [0,1]
 real_t mt_rand_01(__private uint* state, __private int* idx, __private uint* mt) {
-  return (real_t)mt_rand(&mt[0], &idx, mt) / 4294967295.0f;
+  return (real_t)mt_rand(&mt[0], &idx[0], mt) / 4294967295.0f;
 }
 
 // uniform distribution
 real_t unif_rand(__private real_t lower, __private real_t upper,
 		 __private int* idx, __private uint* mt) {
-  return lower + (upper-lower)*mt_rand_01(&mt[0], &idx, mt);
+  return lower + (upper-lower)*mt_rand_01(&mt[0], &idx[0], mt);
 }
 
 

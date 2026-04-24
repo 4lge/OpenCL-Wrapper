@@ -6,7 +6,7 @@
 string opencl_c_container(); // outsourced to kernel.cpp
 string get_opencl_c_code() {
 	string r = opencl_c_container();
-	r = replace(r, " ", "\n"); // replace all spaces by new lines
+	// r = replace(r, " ", "\n"); // replace all spaces by new lines
 	r = replace(r, "#ifdef\n", "#ifdef "); // except for the arguments after some preprocessor options that need to be in the same line
 	r = replace(r, "#ifndef\n", "#ifndef ");
 	r = replace(r, "#define\n", "#define "); // #define with two arguments will not work
