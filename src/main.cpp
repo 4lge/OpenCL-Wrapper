@@ -62,17 +62,13 @@ int main() {
   Memory<float> real_output(device, N);
   Memory<int> seed(device, 1);
         
-  Memory<float> lower(device, 1);
-  Memory<float> upper(device, 1);
 
-  lower[0] = 0.5;
-  upper[0] = 1.5;
+  float lower = -1.0;
+  float upper = 1.0;
 
   Kernel unif_rng(device, N, "unif_rng", real_output, seed, lower, upper); // kernel that runs on the device
         
   seed.write_to_device(); // copy data from host memory to device memory
-  lower.write_to_device(); // copy data from host memory to device memory
-  upper.write_to_device(); // copy data from host memory to device memory
         
   unif_rng.run(); // run add_kernel on the device
 
@@ -93,18 +89,12 @@ int main() {
   code = device.get_c_code()+device.get_kernel_code();
   std::cout << "rnorm CL C code\n" << code << std::endl;
   
-
-  Memory<float> mean(device, 1);
-  Memory<float> sd(device, 1);
-
-  mean[0] = 42;
-  sd[0] = 5;
+  float mean = 0.0;
+  float sd = 1.0;
 
   Kernel norm_rng(device, N, "norm_rng", real_output, seed, mean, sd); // kernel that runs on the device
         
   seed.write_to_device(); // copy data from host memory to device memory
-  mean.write_to_device(); // copy data from host memory to device memory
-  sd.write_to_device(); // copy data from host memory to device memory
         
   norm_rng.run(); // run add_kernel on the device
 

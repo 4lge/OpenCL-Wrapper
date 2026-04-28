@@ -5,7 +5,7 @@ Differences:
 + kernels itself and some sort of C library for kernels split into `kernels/*.cl` and `src/kernels.cpp` files.
 + enable some more utilities in `utilities.hpp` for file access 
 + example expanded to contain a Mersenne Twister (in `src/kernels.cpp`) and a uniform RNG kernel
-  (`kernels/runif.cl`)
+  (`kernels/runif.cl`) and normal RNG kernel  ((`kernels/norm.cl`)
 
 original README continues:
 
