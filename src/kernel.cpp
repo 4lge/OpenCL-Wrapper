@@ -69,6 +69,13 @@ real_t unif_rand(__private real_t lower, __private real_t upper,
   return lower + (upper-lower)*mt_rand_01(&mt[0], &idx[0], mt);
 }
 
+// normal distribution
+real_t norm_rand(__private real_t mu, __private real_t sigma,
+                 __private int* idx, __private uint* mt) {
+  return mu + sigma * sqrt(-2 * log(mt_rand_01(&mt[0], &idx[0], mt))) *
+    cos(2 * 3.14159265359f * mt_rand_01(&mt[0], &idx[0], mt));
+  // note we are wasting z1 = mu + sigma * sqrt(-2 * ln(u1)) * sin(2π * u2) here
+}
 
 
 
