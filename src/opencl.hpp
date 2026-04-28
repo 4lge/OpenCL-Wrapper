@@ -288,6 +288,10 @@ private:
 	bool exists = false;
   string c_code;
   string kernel_code;
+  string kernel_file;
+  string kernel_name;
+  string kernel_path;
+  bool kernel_compiled = false;
 	inline string enable_device_capabilities() const { return // enable FP64/FP16 capabilities if available
 		string(info.patch_nvidia_fp16         ? "\n #define cl_khr_fp16"                : "")+ // Nvidia Pascal and newer GPUs with driver>=520.00 don't report cl_khr_fp16, but do support basic FP16 arithmetic
 		string(info.patch_legacy_gpu_fma      ? "\n #define fma(a, b, c) ((a)*(b)+(c))" : "")+ // some old GPUs have terrible fma performance, so replace with a*b+c
@@ -355,6 +359,40 @@ public:
     inline string get_kernel_code(){
       return this->kernel_code;
     }
+    inline void set_kernel_file(const string& kernel_file){
+      this->kernel_file = kernel_file;
+    }
+    inline string get_kernel_file(){
+      return this->kernel_file;
+    }
+    inline void set_kernel_path(const string& kernel_path){
+      this->kernel_path = kernel_path;
+    }
+    inline string get_kernel_path(){
+      return this->kernel_path;
+    }
+    inline void load_kernel(string path, string file){
+	    if(equals_regex(file,this->kernel_name)){
+             print_warning("kernel already loaded: " + file +"\n");
+	    } else {
+	    this->kernel_name=file;
+	    this->kernel_path=path;
+      vector<string> kernel_files = find_files(path, ".cl");
+      bool found = false;
+      for (vector<string>::iterator kf=kernel_files.begin(); kf!=kernel_files.end(); ++kf){
+	      if(contains_regex(*kf,".*/" + file + "$")){
+		      this->kernel_file = *kf;
+		      found = true;
+		      break;
+	      }
+      }
+
+      if(found) {
+        string kernel_source = read_file(this->kernel_file);
+        this->set_kernel_code(kernel_source);
+      }
+	    }
+    }
     inline void compile_kernel(){
       cl::Program::Sources cl_source;
       const string code = enable_device_capabilities()+"\n"+c_code+kernel_code;
@@ -370,8 +408,13 @@ public:
       // write_file("bin/kernel.log", log); // save build log
       if((uint)log.length()>2u) print_warning(log); // print build log
 #endif // LOG
-      if(error) print_error("OpenCL C code compilation failed with error code "+to_string(error)+". Make sure there are no errors in kernel.cpp.");
-      else print_info("OpenCL C code successfully compiled.");
+      if(error) {
+	      print_error("OpenCL C code compilation failed with error code "+to_string(error)+". Make sure there are no errors in kernel.cpp.");
+	      this->kernel_compiled = false;
+      } else {
+	      print_info("OpenCL C code successfully compiled.");
+	      this->kernel_compiled = true;
+      }
 #ifdef PTX // generate assembly (ptx) file for OpenCL code
       write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>()[0][0]); // save binary (ptx file)
 #endif // PTX
