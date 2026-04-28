@@ -316,7 +316,7 @@ public:
 		this->info = info;
         this->c_code = opencl_c_code;
 		this->cl_queue = cl::CommandQueue(info.cl_context, info.cl_device); // queue to push commands for the device
-        this->compile_kernel();
+        // this->compile_kernel();
         /*
         cl::Program::Sources cl_source;
 		const string kernel_code = enable_device_capabilities()+"\n"+opencl_c_code;
