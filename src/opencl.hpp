@@ -498,6 +498,9 @@ public:
 	inline ~Memory() {
 		delete_buffers();
 	}
+        template<typename U> operator Memory<U>(){
+                return  Memory<U>(this.device, this.length(), this.dimensions(), (U*) this.host_buffer, false, true);
+        }
 	inline Memory& operator=(Memory&& memory) noexcept { // move assignment
 		delete_buffers(); // delete existing buffers and restore default state
 		N = memory.length(); // copy values/pointers from memory
