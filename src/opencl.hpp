@@ -288,6 +288,7 @@ private:
 	bool exists = false;
   string c_code;
   string kernel_code;
+  string compiled_code;
   string kernel_file;
   string kernel_name;
   string kernel_path;
@@ -353,7 +354,10 @@ public:
     inline string get_c_code(){
       return this->c_code;
     }
-    inline void set_kernel_code(const string& kernel_code){
+    inline string get_compiled_code(){
+      return this->compiled_code;
+    }
+      inline void set_kernel_code(const string& kernel_code){
       this->kernel_code = kernel_code;
     }
     inline string get_kernel_code(){
@@ -395,8 +399,8 @@ public:
     }
     inline void compile_kernel(){
       cl::Program::Sources cl_source;
-      const string code = enable_device_capabilities()+"\n"+c_code+kernel_code;
-      cl_source.push_back({ code.c_str(), code.length() });
+      compiled_code = enable_device_capabilities()+"\n"+c_code+kernel_code;
+      cl_source.push_back({ compiled_code.c_str(), compiled_code.length() });
       this->cl_program = cl::Program(info.cl_context, cl_source);
       const string build_options = "-cl-std=CL"+info.opencl_c_version+" -cl-finite-math-only -cl-no-signed-zeros -cl-mad-enable"+(info.patch_intel_gpu_above_4gb ? " -cl-intel-greater-than-4GB-buffer-required" : "");
 #ifndef LOG
