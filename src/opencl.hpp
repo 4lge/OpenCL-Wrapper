@@ -125,6 +125,8 @@ struct Device_Info {
 		compute_units = (uint)cl_device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>(); // compute units (CUs) can contain multiple cores depending on the microarchitecture
 		clock_frequency = (uint)cl_device.getInfo<CL_DEVICE_MAX_CLOCK_FREQUENCY>(); // in MHz
 		is_fp64_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE>()*(uint)contains(cl_device.getInfo<CL_DEVICE_EXTENSIONS>(), "cl_khr_fp64");
+        if(is_fp64_capable==0) // also check amd flags:
+          is_fp64_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE>()*(uint)contains(cl_device.getInfo<CL_DEVICE_EXTENSIONS>(), "cl_amd_fp64");
 		is_fp32_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_FLOAT>();
 		is_fp16_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_HALF>()*(uint)contains(cl_device.getInfo<CL_DEVICE_EXTENSIONS>(), "cl_khr_fp16");
 		is_int64_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_LONG>();
@@ -217,7 +219,9 @@ inline void print_device_info(const Device_Info& d) { // print OpenCL device inf
 	println("| Compute Units  | "+alignl(58, to_string(d.compute_units)+" at "+to_string(d.clock_frequency)+" MHz ("+to_string(d.cores)+" cores, "+to_string(d.tflops, 3)+" TFLOPs/s)")+" |");
 	println("| Memory, Cache  | "+alignl(58, to_string(d.memory)+" MB "+(d.uses_ram ? "" : "V")+"RAM, "+to_string(d.global_cache)+" KB global / "+to_string(d.local_cache)+" KB local")+" |");
 	println("| Buffer Limits  | "+alignl(58, to_string(d.max_global_buffer)+" MB global, "+to_string(d.max_constant_buffer)+" KB constant")+" |");
-    println("| Double Width   | "+alignl(58, to_string(cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE>()))+" |");
+    println("| Double Width   | "+alignl(58, to_string(d.cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE>()))+" |");
+    println("| Device Extens. | "+alignl(58, to_string(d.cl_device.getInfo<CL_DEVICE_EXTENSIONS>()))+" |");
+    println("| FP64 capable   | "+alignl(58, to_string(d.is_fp64_capable))+" |");
 	println("|----------------'------------------------------------------------------------|");
 }
 inline vector<Device_Info> get_devices(const bool print_info=true) { // returns a vector of all available OpenCL devices
@@ -296,6 +300,11 @@ private:
   bool kernel_compiled = false;
 	inline string enable_device_capabilities() const { return // enable FP64/FP16 capabilities if available
 		string(info.patch_nvidia_fp16         ? "\n #define cl_khr_fp16"                : "")+ // Nvidia Pascal and newer GPUs with driver>=520.00 don't report cl_khr_fp16, but do support basic FP16 arithmetic
+        string(info.is_fp64_capable           ? "\n typedef double real_t;"                : "\n typedef float real_t;")+ // prepare float/double abstraction
+        string(info.is_fp64_capable           ? "\n typedef double2 real2_t;"                : "\n typedef float2 real2_t;")+ 
+        string(info.is_fp64_capable           ? "\n typedef double3 real3_t;"                : "\n typedef float3 real3_t;")+ 
+        string(info.is_fp64_capable           ? "\n typedef double4 real4_t;"                : "\n typedef float4 real4_t;")+ 
+        string(info.is_fp64_capable           ? "\n typedef double8 real8_t;"                : "\n typedef float8 real8_t;")+ 
 		string(info.patch_legacy_gpu_fma      ? "\n #define fma(a, b, c) ((a)*(b)+(c))" : "")+ // some old GPUs have terrible fma performance, so replace with a*b+c
 		string(info.intel_compute_capability  ? "\n #define cl_intel_compute_capability "+to_string(info.intel_compute_capability) : "")+ // allows querying Intel compute capability
 		string(info.nvidia_compute_capability ? "\n #define cl_nv_compute_capability "+to_string(info.nvidia_compute_capability) : "")+ // allows querying Nvidia compute capability for inline PTX

@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# useful when using POCL:
+POCL_LEAVE_KERNEL_COMPILER_TEMP_FILES=1
+export POCL_LEAVE_KERNEL_COMPILER_TEMP_FILES
+
 mkdir -p bin # create directory for executable
 rm -f bin/OpenCL-Wrapper # prevent execution of old version if compiling fails
 

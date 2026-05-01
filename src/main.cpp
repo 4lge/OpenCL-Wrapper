@@ -30,7 +30,7 @@ int main() {
   std::cout << "CL C code\n" << code << std::endl;
 
   
-  const uint N = 1024u; // size of vectors
+  const uint N = 10u; //1024u; // size of vectors
   Memory<float> A(device, N); // allocate memory on both host and device
   Memory<float> B(device, N);
   Memory<float> C(device, N);
@@ -66,6 +66,7 @@ int main() {
   float lower = -1.0;
   float upper = 1.0;
 
+  
   Kernel unif_rng(device, N, "unif_rng", real_output, seed, lower, upper); // kernel that runs on the device
         
   seed.write_to_device(); // copy data from host memory to device memory
