@@ -23,7 +23,6 @@ int main() {
 // 
 // device.set_kernel_code(read_file(add_kernel_file));
   device.load_kernel("kernels","add.cl");
-
   device.compile_kernel();
 
   string code = device.get_c_code()+device.get_kernel_code();
@@ -109,6 +108,28 @@ int main() {
   }
   std::cout << ")" << std::endl;
 
+  
+  std::cout << "rerun/recompile" << std::endl;
+  device.load_kernel("kernels","rnorm.cl");
+  device.compile_kernel();
+
+  
+  Kernel norm_rng2(device, N, "norm_rng", real_output, seed, mean, sd); // kernel that runs on the device
+        
+  seed.write_to_device(); // copy data from host memory to device memory
+        
+  norm_rng2.run(); // run add_kernel on the device
+  
+  real_output.read_from_device(); // copy data from device memory to host memory
+
+  std::cout << "r_norm2 <- c(";;
+  for(auto i=0; i<real_output.length(); i++){
+    std::cout << real_output[i];
+    if(i<real_output.length()-1)
+      std::cout << ", ";
+  }
+  std::cout << ")" << std::endl;
+  
     
   wait();
   return 0;

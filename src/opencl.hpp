@@ -389,6 +389,7 @@ public:
 	    if(equals_regex(file,"^"+this->kernel_name+"$")){
              print_warning("kernel already loaded: " + file +"\n");
 	    } else {
+          this->kernel_compiled = false; // force recompile
 	    this->kernel_name=file;
 	    this->kernel_path=path;
       vector<string> kernel_files = find_files(path, ".cl");
@@ -408,6 +409,7 @@ public:
 	    }
     }
     inline void compile_kernel(){
+      if(!this->kernel_compiled){ // avoid unnecessary recomiles
       cl::Program::Sources cl_source;
       compiled_code = enable_device_capabilities()+"\n"+c_code+kernel_code;
       cl_source.push_back({ compiled_code.c_str(), compiled_code.length() });
@@ -433,6 +435,7 @@ public:
       write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>()[0][0]); // save binary (ptx file)
 #endif // PTX
   }
+    }
 };
 
 template<typename T> class Memory {
