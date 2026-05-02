@@ -386,9 +386,9 @@ public:
       return this->kernel_path;
     }
     inline void load_kernel(string path, string file){
-      print_info("loading kernel from >"+path+"/"+file+"<\n");
+      print_info("loading kernel from >"+path+"< / >"+file+"< over >"+this->kernel_name+"<\n");
 	    if(equals_regex(file,"^"+this->kernel_name+"$")){
-             print_warning("kernel already loaded: " + file +"\n");
+             print_warning("kernel >"+this->kernel_name+"< already loaded: " + file +"\n");
 	    } else {
           this->kernel_compiled = false; // force recompile
 	    this->kernel_name=file;
