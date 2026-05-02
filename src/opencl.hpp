@@ -385,31 +385,33 @@ public:
     inline string get_kernel_path(){
       return this->kernel_path;
     }
-    inline void load_kernel(string path, string file){
-      print_info("loading kernel from >"+path+"< / >"+file+"< over >"+this->kernel_name+"<\n");
-	    if(equals_regex(file,"^"+this->kernel_name+"$")){
+  inline void load_kernel(string path, string file){
+    print_info("loading kernel from >"+path+"< / >"+file+"< over >"+this->kernel_name+"<\n");
+    if(equals_regex(file,"^"+this->kernel_name+"$")){
              print_warning("kernel >"+this->kernel_name+"< already loaded: " + file +"\n");
 	    } else {
-          this->kernel_compiled = false; // force recompile
-	    this->kernel_name=file;
-	    this->kernel_path=path;
+      this->kernel_compiled = false; // force recompile
       vector<string> kernel_files = find_files(path, ".cl");
       bool found = false;
       for (vector<string>::iterator kf=kernel_files.begin(); kf!=kernel_files.end(); ++kf){
-	      if(contains_regex(*kf,".*/" + file + "$")){
-		      this->kernel_file = *kf;
-		      found = true;
-		      break;
-	      }
+	if(contains_regex(*kf,".*/" + file + "$")){
+	  this->kernel_file = *kf;
+	  found = true;
+	  break;
+	}
       }
-
+      
       if(found) {
         string kernel_source = read_file(this->kernel_file);
         this->set_kernel_code(kernel_source);
+	this->kernel_name=file;
+	this->kernel_path=path;
+	
+	print_info("successfuly loaded kernel from >"+this->kernel_path+"< / >"+this->kernel_name+"<\n");
       }
-	    }
     }
-    inline void compile_kernel(){
+  }
+  inline void compile_kernel(){
       if(!this->kernel_compiled){ // avoid unnecessary recomiles
       cl::Program::Sources cl_source;
       compiled_code = enable_device_capabilities()+"\n"+c_code+kernel_code;
