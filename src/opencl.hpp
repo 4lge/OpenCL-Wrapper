@@ -386,6 +386,7 @@ public:
       return this->kernel_path;
     }
     inline void load_kernel(string path, string file){
+      print_info("loading kernel from >"+path+"/"+file+"<\n");
 	    if(equals_regex(file,"^"+this->kernel_name+"$")){
              print_warning("kernel already loaded: " + file +"\n");
 	    } else {
