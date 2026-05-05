@@ -281,7 +281,7 @@ inline Device_Info select_device_with_id(const uint id, const vector<Device_Info
 	if(id<(uint)devices.size()) {
 		return devices[id];
 	} else {
-		print_error("Your selected Device ID ("+to_string(id)+") is wrong.");
+		print_warning("Your selected Device ID ("+to_string(id)+") is wrong.");
 		return devices[0]; // is never executed, just to avoid compiler warnings
 	}
 }
