@@ -246,7 +246,7 @@ inline vector<Device_Info> get_devices(const bool print_info=true) { // returns 
 #ifdef _WIN32
 		wait();
 #endif // Windows
-		exit(1);
+		return NULL;
 	}
 	if(print_info) {
 		println("\r|----------------.------------------------------------------------------------|");
