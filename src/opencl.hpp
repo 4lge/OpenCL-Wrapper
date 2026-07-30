@@ -196,7 +196,20 @@ struct Device_Info {
 		cores = to_uint((float)compute_units*cores_per_cu); // for CPUs, compute_units is the number of threads (twice the number of cores with hyperthreading)
 		tflops = 1E-6f*(float)cores*(float)ipc*(float)clock_frequency; // estimated device floating point performance in TeraFLOPs/s
 	}
-	inline Device_Info() {}; // default constructor
+/////
+inline Device_Info(const int dummy) {
+  this->id = -1;
+  name = trim("NULL device"); // device name
+  vendor = trim("Nobody");
+  opencl_c_version = "0.0";
+  memory = 0;
+  is_cpu = false;
+  is_gpu = false,
+  cores =0;
+  tflops = 0.0;
+}
+///// END
+		inline Device_Info() {}; // default constructor
 };
 
 string get_opencl_c_code(); // implemented in kernel.hpp
@@ -258,6 +271,7 @@ inline vector<Device_Info> get_devices(const bool print_info=true) { // returns 
 inline Device_Info select_device_with_most_flops(const vector<Device_Info>& devices=get_devices()) { // returns device with best floating-point performance
 	float best_value = 0.0f;
 	uint best_i = 0u;
+	if(devices.size()>0){
 	for(uint i=0u; i<(uint)devices.size(); i++) { // find device with highest (estimated) floating point performance
 		if(devices[i].tflops>best_value) {
 			best_value = devices[i].tflops;
@@ -265,10 +279,14 @@ inline Device_Info select_device_with_most_flops(const vector<Device_Info>& devi
 		}
 	}
 	return devices[best_i];
+	} else {
+	  return Device_Info(-1);
+	}
 }
 inline Device_Info select_device_with_most_memory(const vector<Device_Info>& devices=get_devices()) { // returns device with largest memory capacity
 	uint best_value = 0u;
 	uint best_i = 0u;
+	if(devices.size()>0){
 	for(uint i=0u; i<(uint)devices.size(); i++) { // find device with most memory
 		if(devices[i].memory>best_value) {
 			best_value = devices[i].memory;
@@ -276,14 +294,22 @@ inline Device_Info select_device_with_most_memory(const vector<Device_Info>& dev
 		}
 	}
 	return devices[best_i];
+	} else {
+	  return Device_Info(-1);
+	}
 }
 inline Device_Info select_device_with_id(const uint id, const vector<Device_Info>& devices=get_devices()) { // returns device with specified ID
-	if(id<(uint)devices.size()) {
+  if(devices.size()>0){
+  	if(id<(uint)devices.size() && id>=0) {
 		return devices[id];
 	} else {
 		print_warning("Your selected Device ID ("+to_string(id)+") is wrong.");
 		return devices[0]; // is never executed, just to avoid compiler warnings
 	}
+} else {
+  return Device_Info(-1);
+  
+}
 }
 
 class Device {
