@@ -420,26 +420,28 @@ public:
              print_warning("kernel >"+this->kernel_name+"< already loaded: " + file +"\n");
 	    } else {
       this->kernel_compiled = false; // force recompile
-      vector<string> kernel_files = find_files(path, ".cl");
-      bool found = false;
-      for (vector<string>::iterator kf=kernel_files.begin(); kf!=kernel_files.end(); ++kf){
-        
-        // 🛡️ PLATTFORM-FIX: Akzeptiert sowohl / (Linux/Mac) als auch \ (Windows) vor dem Dateinamen!
-        if(contains_regex(*kf, ".*[\\\\/]" + file + "$")){
-          this->kernel_file = *kf;
-          found = true;
-          break;
-        }
+      string target_file = path;
+      if (!target_file.empty() && target_file.back() != '/' && target_file.back() != '\\') {
+          target_file += "/";
       }
+      target_file += file;
+      
+      std::ifstream infile(target_file);
+      bool found = infile.good();
+      infile.close();
+  
       
       if(found) {
-        string kernel_source = read_file(this->kernel_file);
+        this->kernel_file = target_file;
+        string kernel_source = read_file(this->kernel_file)	
         this->set_kernel_code(kernel_source);
         this->kernel_name=file;
         this->kernel_path=path;
         
         print_info("successfuly loaded kernel from >"+this->kernel_path+"< / >"+this->kernel_name+"<\n");
-      }
+      } else {
+        print_error("kernel not found: " + target_file);
+      } 
     }
   }
   inline void compile_kernel(){
