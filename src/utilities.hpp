@@ -774,10 +774,14 @@ inline string create_file_extension(const string& filename, const string& extens
 	return filename.substr(0, filename.rfind('.'))+(extension.at(0)!='.'?".":"")+extension; // remove existing file extension if existing and replace it with new one
 }
 inline string read_file(const string& filename) {
+	std::cout << "start in read_file for " << filename << std::endl;
 	std::ifstream file(filename, std::ios::in);
+	std::cout << "ifstream created for " << filename << std::endl;
 	if(file.fail()) print_error("File \""+filename+"\" does not exist!");
 	const string r((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+	std::cout << filename << " read via istreambuf_iterator" << std::endl;
 	file.close();
+	std::cout << filename << " closed" << std::endl;
 	return r;
 }
 inline void write_file(const string& filename, const string& content="") {
