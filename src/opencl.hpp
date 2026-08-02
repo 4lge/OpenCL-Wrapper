@@ -411,6 +411,9 @@ public:
     inline string get_kernel_path(){
       return this->kernel_path;
     }
+    ////
+
+    ////
   inline void load_kernel(string path, string file){
     print_info("loading kernel from >"+path+"< / >"+file+"< over >"+this->kernel_name+"<\n");
     if(equals_regex(file,"^"+this->kernel_name+"$")){
@@ -420,20 +423,22 @@ public:
       vector<string> kernel_files = find_files(path, ".cl");
       bool found = false;
       for (vector<string>::iterator kf=kernel_files.begin(); kf!=kernel_files.end(); ++kf){
-	if(contains_regex(*kf,".*/" + file + "$")){
-	  this->kernel_file = *kf;
-	  found = true;
-	  break;
-	}
+        
+        // 🛡️ PLATTFORM-FIX: Akzeptiert sowohl / (Linux/Mac) als auch \ (Windows) vor dem Dateinamen!
+        if(contains_regex(*kf, ".*[\\\\/]" + file + "$")){
+          this->kernel_file = *kf;
+          found = true;
+          break;
+        }
       }
       
       if(found) {
         string kernel_source = read_file(this->kernel_file);
         this->set_kernel_code(kernel_source);
-	this->kernel_name=file;
-	this->kernel_path=path;
-	
-	print_info("successfuly loaded kernel from >"+this->kernel_path+"< / >"+this->kernel_name+"<\n");
+        this->kernel_name=file;
+        this->kernel_path=path;
+        
+        print_info("successfuly loaded kernel from >"+this->kernel_path+"< / >"+this->kernel_name+"<\n");
       }
     }
   }
