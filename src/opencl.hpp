@@ -433,7 +433,7 @@ public:
       
       if(found) {
         this->kernel_file = target_file;
-        string kernel_source = read_file(this->kernel_file)	
+        string kernel_source = read_file(this->kernel_file);
         this->set_kernel_code(kernel_source);
         this->kernel_name=file;
         this->kernel_path=path;
