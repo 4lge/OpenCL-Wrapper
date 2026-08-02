@@ -640,15 +640,16 @@ inline void print_message(const string& message, const string& keyword="", const
 inline void print_error(const string& s) { // print formatted error message
 	print_message(s, "Error");
 #ifdef _WIN32
-	print_message("Press Enter to exit.", "     ", -1, false);
+    //	print_message("Press Enter to exit.", "     ", -1, false);
 #endif // _WIN32
 	string b = "";
 	for(int i=0; i<CONSOLE_WIDTH-2; i++) b += "-";
 	println("'"+b+"'");
 #ifdef _WIN32
-	wait();
+	//wait();
 #endif //_WIN32
-	exit(1);
+	// exit(1);
+    throw std::runtime_error("OpenCL error: " + s);
 }
 inline void print_warning(const string& s) { // print formatted warning message
 	print_message(s, "Warning");
@@ -725,10 +726,11 @@ inline void print_message(const string& message, const string& keyword="", const
 inline void print_error(const string& s) { // print error message
 	println("Error: "+s);
 #ifdef _WIN32
-	println("       Press Enter to exit.");
-	wait();
+	//println("       Press Enter to exit.");
+	//wait();
 #endif //_WIN32
-	exit(1);
+	//exit(1);
+    throw std::runtime_error("OpenCL error: " + s);
 }
 inline void print_warning(const string& s) { // print warning message
 	println("Warning: "+s);
