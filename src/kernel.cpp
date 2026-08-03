@@ -4,7 +4,7 @@ string opencl_c_container() { return R( // ########################## begin of O
 
                                         
 // Uniform random number generator (Mersenne Twister)
-uint mt_rand(__private uint* state, __private int* idx, __private uint* mt) {
+inline uint mt_rand(__private uint* state, __private int* idx, __private uint* mt) {
   if (*idx >= 624) {
     // Twist the state array
     for (int i = 0; i < 624; ++i) {
@@ -24,18 +24,18 @@ uint mt_rand(__private uint* state, __private int* idx, __private uint* mt) {
 }
        
 // Mersenne Twister scaled to [0,1]
-real_t mt_rand_01(__private uint* state, __private int* idx, __private uint* mt) {
+inline real_t mt_rand_01(__private uint* state, __private int* idx, __private uint* mt) {
   return (real_t)mt_rand(&mt[0], &idx[0], mt) / 4294967295.0f;
 }
 
 // uniform distribution
-real_t unif_rand(__private real_t lower, __private real_t upper,
+inline real_t unif_rand(__private real_t lower, __private real_t upper,
 		 __private int* idx, __private uint* mt) {
   return lower + (upper-lower)*mt_rand_01(&mt[0], &idx[0], mt);
 }
 
 // normal distribution
-real_t norm_rand(__private real_t mu, __private real_t sigma,
+inline real_t norm_rand(__private real_t mu, __private real_t sigma,
                  __private int* idx, __private uint* mt) {
   return mu + sigma * sqrt(-2 * log(mt_rand_01(&mt[0], &idx[0], mt))) *
     cos(2 * 3.14159265359f * mt_rand_01(&mt[0], &idx[0], mt));

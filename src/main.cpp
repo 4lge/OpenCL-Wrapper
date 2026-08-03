@@ -1,7 +1,9 @@
 #include "opencl.hpp"
 
 int main() {
-  Device device(select_device_with_most_flops()); // compile OpenCL C code for the fastest available device
+  //Device device(select_device_with_most_flops()); // compile OpenCL C code for the fastest available device
+  Device device(select_device_with_most_memory()); // compile OpenCL C code for the fastest available device
+  //Device device(select_device_with_most_flops()); // compile OpenCL C code for the fastest available device
   
 // vector<string> kernel_files = find_files("kernels",".cl");
 //
@@ -52,85 +54,112 @@ int main() {
   print_info("Value after kernel execution: C[0] = "+to_string(C[0]));
 
   device.load_kernel("kernels","runif.cl");
+#ifdef _WIN32
+  device.compile_kernel("-cl-opt-disable"); // Schaltet den Optimierer unter Windows aus
+#else
   device.compile_kernel();
+#endif  
 
   code = device.get_c_code()+device.get_kernel_code();
   std::cout << "runif CL C code\n" << code << std::endl;
   
 
-  Memory<float> real_output(device, N);
-  Memory<int> seed(device, 1);
-        
+  Memory<float> OutputF;(device, N);
+  Memory<double> OutputD; (device, N);
+  Memory<int> Seed(device, 1);
 
-  float lower = -1.0;
-  float upper = 1.0;
+  Seed[0]=42;
 
+  double lower = -1.0;
+  double upper = 1.0;
+
+  Kernel unif_rng;
+    // kernel that runs on the device
+    if(device.info.is_fp64_capable){ // TODO: use float via parameter also on double device via argument.
+      OutputD = Memory<double>(device, N);
+      unif_rng = Kernel(device, N, "unif_rng", OutputD, Seed, lower, upper);
+    } else {
+      OutputF = Memory<float>(device, N);
+      // this does not (yet) work!?
+      // norm_rng = Kernel(device, N, "norm_rng", Memory<float>(Output), Seed, (float)mean, (float)sd);
+      unif_rng = Kernel(device, N, "unif_rng", OutputF, Seed, (float)lower, (float)upper);
+    }
   
-  Kernel unif_rng(device, N, "unif_rng", real_output, seed, lower, upper); // kernel that runs on the device
-        
-  seed.write_to_device(); // copy data from host memory to device memory
-        
-  unif_rng.run(); // run add_kernel on the device
+  Seed.write_to_device(); // copy data from host memory to device memory
 
-  real_output.read_from_device(); // copy data from device memory to host memory
-
+      // run add_kernel on the device
+    unif_rng.run();
+    
   std::cout << "r_unif <- c(";;
-  for(auto i=0; i<real_output.length(); i++){
-    std::cout << real_output[i];
-    if(i<real_output.length()-1)
-      std::cout << ", ";
-  }
-  std::cout << ")" << std::endl;
+    if(device.info.is_fp64_capable){ 
+      OutputD.read_from_device(); 
+      for(auto i=0; i<OutputD.length(); i++){
+        std::cout << (double)OutputD[i];
+        if(i<OutputF.length()-1)
+        std::cout << ", ";
+      }
+    } else {
+      OutputF.read_from_device();
+      for(auto i=0; i<OutputF.length(); i++){
+        std::cout << (double)OutputF[i];
+        if(i<OutputF.length()-1)
+        std::cout << ", ";
+      }
+    }
+    std::cout << ")" << std::endl;
+
 
     
   device.load_kernel("kernels","rnorm.cl");
+#ifdef _WIN32
+  device.compile_kernel("-cl-opt-disable"); // Schaltet den unendlichen Optimierer unter Windows aus
+#else
   device.compile_kernel();
-
+#endif
   code = device.get_c_code()+device.get_kernel_code();
   std::cout << "rnorm CL C code\n" << code << std::endl;
   
-  float mean = 0.0;
-  float sd = 1.0;
+  double mean = 0.0;
+  double sd = 1.0;
 
-  Kernel norm_rng(device, N, "norm_rng", real_output, seed, mean, sd); // kernel that runs on the device
-        
-  seed.write_to_device(); // copy data from host memory to device memory
-        
-  norm_rng.run(); // run add_kernel on the device
-
-  real_output.read_from_device(); // copy data from device memory to host memory
-
-  std::cout << "r_norm <- c(";;
-  for(auto i=0; i<real_output.length(); i++){
-    std::cout << real_output[i];
-    if(i<real_output.length()-1)
-      std::cout << ", ";
-  }
-  std::cout << ")" << std::endl;
-
-  
-  std::cout << "rerun/recompile" << std::endl;
-  device.load_kernel("kernels","rnorm.cl");
-  device.compile_kernel();
-
-  
-  Kernel norm_rng2(device, N, "norm_rng", real_output, seed, mean, sd); // kernel that runs on the device
-        
-  seed.write_to_device(); // copy data from host memory to device memory
-        
-  norm_rng2.run(); // run add_kernel on the device
-  
-  real_output.read_from_device(); // copy data from device memory to host memory
-
-  std::cout << "r_norm2 <- c(";;
-  for(auto i=0; i<real_output.length(); i++){
-    std::cout << real_output[i];
-    if(i<real_output.length()-1)
-      std::cout << ", ";
-  }
-  std::cout << ")" << std::endl;
-  
+      Kernel norm_rng;
+    // kernel that runs on the device
+    if(device.info.is_fp64_capable){ // TODO: use float via parameter also on double device via argument.
+      OutputD = Memory<double>(device, N);
+      norm_rng = Kernel(device, N, "norm_rng", OutputD, Seed, mean, sd);
+    } else {
+      OutputF = Memory<float>(device, N);
+      // this does not (yet) work!?
+      // norm_rng = Kernel(device, N, "norm_rng", Memory<float>(Output), Seed, (float)mean, (float)sd);
+      norm_rng = Kernel(device, N, "norm_rng", OutputF, Seed, (float)mean, (float)sd);
+    }
+    Seed.write_to_device(); // copy data from host memory to device memory
     
+    // run add_kernel on the device
+    norm_rng.run();
+    
+    // copy data from device memory to host memory
+  
+    std::cout << "r_norm <- c(";;
+    if(device.info.is_fp64_capable){ 
+      OutputD.read_from_device(); 
+      for(auto i=0; i<OutputD.length(); i++){
+        std::cout << (double)OutputD[i];
+        if(i<OutputF.length()-1)
+        std::cout << ", ";
+      }
+    } else {
+      OutputF.read_from_device();
+      for(auto i=0; i<OutputF.length(); i++){
+        std::cout << (double)OutputF[i];
+        if(i<OutputF.length()-1)
+        std::cout << ", ";
+      }
+    }
+    std::cout << ")" << std::endl;
+
+  std::cout << "example runs finished." << std::endl; 
+
   wait();
   return 0;
 }
