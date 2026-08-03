@@ -434,6 +434,11 @@ public:
       if(found) {
         this->kernel_file = target_file;
         string kernel_source = read_file(this->kernel_file);
+        
+        // 🛡️ DER ABSOLUTE WINDOWS-SPEICHER-SCHUTZWALL:
+        // Wir zwingen den Windows-Nvidia-Treiber hart dazu, das String-Ende zu sehen!
+        kernel_source += "\n\0";
+        
         this->set_kernel_code(kernel_source);
         this->kernel_name=file;
         this->kernel_path=path;
