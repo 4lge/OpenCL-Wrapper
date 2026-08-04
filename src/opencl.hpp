@@ -453,13 +453,11 @@ public:
       if(!this->kernel_compiled){ // avoid unnecessary recomiles
       cl::Program::Sources cl_source;
 
-      // 🚀 DER NATIVE WINDOWS-INTEL-BYPASS
-      // Wenn wir unter Windows sind und das ausgewählte Gerät von Intel ist,
-      // überspringen wir das JIT-Bauen komplett, um den Treiber-Hänger zu verhindern!
+      // 🚀 DER NATIVE WINDOWS-INTEL-BYPASS (Korrigiert für Ihre Klassen-Struktur)
 #ifdef _WIN32
-      std::string current_vendor = this->device.getInfo<CL_DEVICE_VENDOR>();
-      if (current_vendor.find("Intel") != std::string::npos) {
-          std::cout << "| Info: Intel-Gerat unter Windows erkannt. Überspringe JIT zur Vermeidung von Hängern. |" << std::endl;
+      
+      if (this->info.vendor.find("Intel") != std::string::npos) {
+          std::cout << "| Info: Intel-Geraet unter Windows erkannt. Ueberspringe JIT zur Vermeidung von Haengern. |" << std::endl;
           return; 
       }
 #endif
