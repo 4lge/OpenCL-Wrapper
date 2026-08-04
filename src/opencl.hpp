@@ -352,7 +352,20 @@ public:
 		print_device_info(info);
 		this->info = info;
         this->c_code = opencl_c_code;
+#ifdef _WIN32
+  // Zwingt den NVIDIA-Treiber unter Windows im R-Thread zu strikt synchronem 
+  // In-Order-Verhalten, wodurch der asynchrone Kernel-Lock physikalisch unmöglich wird!
+  cl_int err = CL_SUCCESS;
+  cl_command_queue_properties properties = CL_QUEUE_PROFILING_ENABLE;
+		this->cl_queue = cl::CommandQueue(info.cl_context, info.cl_device,properties, &err ); // queue to push commands for the device
+  // Optionale Sicherheitsprüfung (falls gewünscht)
+  if (err != CL_SUCCESS) {
+      print_error("Fehler beim Erstellen der synchronen CommandQueue unter Windows: " + to_string((int)err));
+  }		
+#else
+  // Linux und macOS nutzen weiterhin das Standard-Verhalten
 		this->cl_queue = cl::CommandQueue(info.cl_context, info.cl_device); // queue to push commands for the device
+#endif	
         // this->compile_kernel();
         /*
         cl::Program::Sources cl_source;
@@ -453,18 +466,10 @@ public:
       if(!this->kernel_compiled){ // avoid unnecessary recomiles
       cl::Program::Sources cl_source;
 
-      // 🚀 DER NATIVE WINDOWS-INTEL-BYPASS (Korrigiert für Ihre Klassen-Struktur)
-#ifdef _WIN32
-      
-      if (this->info.vendor.find("Intel") != std::string::npos) {
-          std::cout << "| Info: Intel-Geraet unter Windows erkannt. Ueberspringe JIT zur Vermeidung von Haengern. |" << std::endl;
-          return; 
-      }
-#endif
       // 🚀 Sicherstellen, dass die mathematische Bibliothek im R-Thread niemals leer ist
-      std::string secure_c_code = get_opencl_c_code();
+      // std::string secure_c_code = get_opencl_c_code();
 
-      compiled_code = enable_device_capabilities() + "\n" + "\n" + secure_c_code + "\n" + kernel_code;
+      compiled_code = enable_device_capabilities() + "\n" + "\n" + c_code + "\n" + kernel_code;
       
 
 #ifdef _WIN32
