@@ -116,8 +116,6 @@ int main() {
 #else
   device.compile_kernel();
 #endif
-  code = device.get_c_code()+device.get_kernel_code();
-  std::cout << "rnorm CL C code\n" << code << std::endl;
   
   double mean = 0.0;
   double sd = 1.0;

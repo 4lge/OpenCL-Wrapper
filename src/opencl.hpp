@@ -452,15 +452,38 @@ public:
   inline void compile_kernel(std::string opt = ""){
       if(!this->kernel_compiled){ // avoid unnecessary recomiles
       cl::Program::Sources cl_source;
-      
+
       // 🚀 Sicherstellen, dass die mathematische Bibliothek im R-Thread niemals leer ist
       std::string secure_c_code = get_opencl_c_code();
-      compiled_code = enable_device_capabilities() + "\n" + secure_c_code + "\n" + kernel_code;
+      // 🚀 DER DEFINITIVE WINDOWS-PROTOTYPEN-TURBO:
+      // Wir deklarieren die Funktionen vorab, damit ptxas sie unter Windows zwingend auflösen kann!
+      std::string windows_prototypes = "";
+#ifdef _WIN32
+      windows_prototypes = 
+        "#define real_t double\n"
+        "uint mt_rand(private uint* mt, private int* idx);\n"
+        "real_t mt_rand_01(private uint* mt, private int* idx);\n"
+        "real_t rnorm(real_t mu, real_t sigma, private int* idx, private uint* mt);\n";
+#endif
+
+      compiled_code = enable_device_capabilities() + "\n" + windows_prototypes + "\n" + secure_c_code + "\n" + kernel_code;
+      
 
 #ifdef _WIN32
       compiled_code += "\n\0";
 #endif
-      
+     
+
+      // 🚀 DIAGNOSE-TURBO: Zeigt uns ungeschminkt, was Nvidia im RAM sieht!
+      std::cout << "\n==================================================" << std::endl;
+      std::cout << "DEBUG: Sende folgenden Code an den OpenCL-Treiber:" << std::endl;
+      std::cout << "==================================================" << std::endl;
+      std::cout << compiled_code << std::endl;
+      std::cout << "==================================================" << std::endl;
+      std::cout << "DEBUG: Code-Laenge im RAM: " << compiled_code.length() << " Bytes." << std::endl;
+      std::cout << "==================================================\n" << std::endl;
+
+
       cl_source.push_back({ compiled_code.c_str(), compiled_code.length() });
       this->cl_program = cl::Program(info.cl_context, cl_source);
       const string build_options = opt+" -cl-std=CL"+info.opencl_c_version+" -cl-finite-math-only -cl-no-signed-zeros -cl-mad-enable"+(info.patch_intel_gpu_above_4gb ? " -cl-intel-greater-than-4GB-buffer-required" : "");
