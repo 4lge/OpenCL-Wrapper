@@ -455,18 +455,8 @@ public:
 
       // 🚀 Sicherstellen, dass die mathematische Bibliothek im R-Thread niemals leer ist
       std::string secure_c_code = get_opencl_c_code();
-      // 🚀 DER DEFINITIVE WINDOWS-PROTOTYPEN-TURBO:
-      // Wir deklarieren die Funktionen vorab, damit ptxas sie unter Windows zwingend auflösen kann!
-      std::string windows_prototypes = "";
-#ifdef _WIN32
-      windows_prototypes = 
-        "#define real_t double\n"
-        "uint mt_rand(private uint* mt, private int* idx);\n"
-        "real_t mt_rand_01(private uint* mt, private int* idx);\n"
-        "real_t rnorm(real_t mu, real_t sigma, private int* idx, private uint* mt);\n";
-#endif
 
-      compiled_code = enable_device_capabilities() + "\n" + windows_prototypes + "\n" + secure_c_code + "\n" + kernel_code;
+      compiled_code = enable_device_capabilities() + "\n" + "\n" + secure_c_code + "\n" + kernel_code;
       
 
 #ifdef _WIN32
