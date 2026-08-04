@@ -14,7 +14,7 @@ string get_opencl_c_code() {
 	r = replace(r, "#if\n", "#if "); // don't leave any spaces in arguments
 	r = replace(r, "#elif\n", "#elif "); // don't leave any spaces in arguments
 	r = replace(r, "#pragma\n", "#pragma ");
-	return "\n" + r + "\n\0";
+	return "\n" + r + "\n";
 }
 
 // everything below is just for syntax highlighting in the editor, this does not change any functionality
