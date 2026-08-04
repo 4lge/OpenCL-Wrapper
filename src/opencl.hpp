@@ -479,13 +479,14 @@ public:
      
 
       // 🚀 DIAGNOSE-TURBO: Zeigt uns ungeschminkt, was Nvidia im RAM sieht!
-      std::cout << "\n==================================================" << std::endl;
-      std::cout << "DEBUG: Sende folgenden Code an den OpenCL-Treiber:" << std::endl;
-      std::cout << "==================================================" << std::endl;
-      std::cout << compiled_code << std::endl;
-      std::cout << "==================================================" << std::endl;
-      std::cout << "DEBUG: Code-Laenge im RAM: " << compiled_code.length() << " Bytes." << std::endl;
-      std::cout << "==================================================\n" << std::endl;
+      //std::cout << "\n==================================================" << std::endl;
+      //std::cout << "DEBUG: Sende folgenden Code an den OpenCL-Treiber:" << std::endl;
+      //std::cout << "==================================================" << std::endl;
+      //std::cout << compiled_code << std::endl;
+      print_info(compiled_code);
+      //std::cout << "==================================================" << std::endl;
+      //std::cout << "DEBUG: Code-Laenge im RAM: " << compiled_code.length() << " Bytes." << std::endl;
+      //std::cout << "==================================================\n" << std::endl;
 
 
       cl_source.push_back({ compiled_code.c_str(), compiled_code.length() });

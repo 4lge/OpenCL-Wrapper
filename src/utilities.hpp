@@ -570,7 +570,7 @@ inline void print(const string& s="") {
 #ifdef _WIN32
     // Unter Windows zwingen wir R, den Puffer SOFORT zu leeren, 
     // anstatt ihn asynchron anzustauen!
-    std::cout << s << std::flush;
+//    std::cout << s << std::flush;
 #else
     std::cout << s;
 #endif	
@@ -578,14 +578,14 @@ inline void print(const string& s="") {
 }
 inline void println(const string& s="") {
 #ifdef _WIN32
-    std::cout << s << "\n" << std::flush;
+//    std::cout << s << "\n" << std::flush;
 #else
     std::cout << s + "\n";
 #endif
 }	
 inline void reprint(const string& s="") {
 #ifdef _WIN32
-	std::cout << "\r"+s << std::flush;
+//	std::cout << "\r"+s << std::flush;
 #else
 	std::cout << "\r"+s;
 #endif
@@ -789,14 +789,14 @@ inline string create_file_extension(const string& filename, const string& extens
 	return filename.substr(0, filename.rfind('.'))+(extension.at(0)!='.'?".":"")+extension; // remove existing file extension if existing and replace it with new one
 }
 inline string read_file(const string& filename) {
-	std::cout << "start in read_file for " << filename << std::endl;
+	print_info(to_string("start in read_file for ") + filename);
 	std::ifstream file(filename, std::ios::in);
-	std::cout << "ifstream created for " << filename << std::endl;
+	print_info(to_string("ifstream created for ") + filename);
 	if(file.fail()) print_error("File \""+filename+"\" does not exist!");
 	const string r((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-	std::cout << filename << " read via istreambuf_iterator" << std::endl;
+	print_info(to_string(" read via istreambuf_iterator" ));
 	file.close();
-	std::cout << filename << " closed" << std::endl;
+	print_info(filename + to_string(" closed"));
 	return r;
 }
 inline void write_file(const string& filename, const string& content="") {
