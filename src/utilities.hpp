@@ -570,7 +570,7 @@ inline void print(const string& s="") {
 #ifdef _WIN32
     // Unter Windows zwingen wir R, den Puffer SOFORT zu leeren, 
     // anstatt ihn asynchron anzustauen!
-//    std::cout << s << std::flush;
+    std::cout << s << std::flush;
 #else
     std::cout << s;
 #endif	
@@ -578,14 +578,14 @@ inline void print(const string& s="") {
 }
 inline void println(const string& s="") {
 #ifdef _WIN32
-//    std::cout << s << "\n" << std::flush;
+    std::cout << s << "\n" << std::flush;
 #else
     std::cout << s + "\n";
 #endif
 }	
 inline void reprint(const string& s="") {
 #ifdef _WIN32
-//	std::cout << "\r"+s << std::flush;
+	std::cout << "\r"+s << std::flush;
 #else
 	std::cout << "\r"+s;
 #endif
