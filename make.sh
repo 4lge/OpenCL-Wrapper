@@ -4,6 +4,8 @@
 POCL_LEAVE_KERNEL_COMPILER_TEMP_FILES=1
 export POCL_LEAVE_KERNEL_COMPILER_TEMP_FILES
 
+Rscript -e "rmarkdown::render(\"OpenCL-Wrapper.Rmd\", output_format = \"md_document\")"
+
 mkdir -p bin # create directory for executable
 rm -f bin/OpenCL-Wrapper # prevent execution of old version if compiling fails
 

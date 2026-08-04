@@ -1,0 +1,41 @@
+---
+title: "OpenCL-Wrapper"
+author: "AG"
+date: "2026-07-30"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{OpenCL-Wrapper Overview}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# OpenCL-Wrapper Paket-Quellcode
+
+Dieses Dokument fasst die wichtigsten Dateien des Pakets zusammen.
+
+alles unter ./src
+
+### opencl.hpp
+``` r, code=readLines('src/opencl.hpp'), eval=FALSE, echo=TRUE}
+```
+
+### src/utilities.hpp
+```{r, code=readLines('src/utilities.hpp'), eval=FALSE, echo=TRUE}
+```
+
+### src/kernel.hpp
+```{r, code=readLines('src/kernel.hpp'), eval=FALSE, echo=TRUE}
+```
+
+    und eigentlich noch kernel.cpp aber das wird durch libkernel.cpp ersetzt.
+
+    mehr ist es nicht bis auf das lokale Beispiel
+
+### src/main.cpp
+```{r, code=readLines('src/kernel.hpp'), eval=FALSE, echo=TRUE}
+```
+und das build script
+
+### make.sh
+```{r, code=readLines('make.sh'), eval=FALSE, echo=TRUE}
+```

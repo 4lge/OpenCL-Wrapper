@@ -3,7 +3,7 @@
 #define UTILITIES_REGEX
 #define UTILITIES_FILE
 #define CONSOLE_WIDTH 79
-//#define UTILITIES_NO_CPP17
+#define UTILITIES_NO_CPP17
 
 #pragma warning(disable:26451)
 #pragma warning(disable:6386)
@@ -748,32 +748,14 @@ inline void set_environment_variable(char* s) { // usage: set_environment_variab
 #endif // Linux
 }
 
-#if defined(__APPLE__) && defined(__MACH__)
-    #include <AvailabilityMacros.h>
-    // MAC_OS_X_VERSION_10_15 entspricht dem Wert 101500
-    #if MAC_OS_X_VERSION_MIN_REQUIRED < 101500
-        #define USE_EXPERIMENTAL_FILESYSTEM 1
-    #endif
-#endif
-
 #ifdef UTILITIES_FILE
 #include <fstream> // read/write files
 #ifndef UTILITIES_NO_CPP17
-
-
-#if defined(USE_EXPERIMENTAL_FILESYSTEM)
-    #include <experimental/filesystem>
-    namespace fs = std::experimental;
-    // maybe needs  -lstdc++fs while linking!
-#else
-    #include <filesystem> // automatically create directory before writing file, requires C++17
-    namespace fs = std::filesystem;
-#endif
-
+#include <filesystem> // automatically create directory before writing file, requires C++17
 inline vector<string> find_files(const string& path, const string& extension=".*") {
 	vector<string> files;
-	if(fs::is_directory(path)&&fs::exists(path)) {
-		for(const auto& entry : fs::directory_iterator(path)) {
+	if(std::filesystem::is_directory(path)&&std::filesystem::exists(path)) {
+		for(const auto& entry : std::filesystem::directory_iterator(path)) {
 			if(extension==".*"||entry.path().extension().string()==extension) files.push_back(entry.path().string());
 		}
 	}
@@ -785,7 +767,7 @@ inline void create_folder(const string& path) { // create folder if it not alrea
 	if(slash_position==(int)string::npos) return; // no slash found
 	const string f = path.substr(0, slash_position); // cut off file name if there is any
 #ifndef UTILITIES_NO_CPP17
-	if(!fs::is_directory(f)||!fs::exists(f)) fs::create_directories(f); // create folder if it not already exists
+	if(!std::filesystem::is_directory(f)||!std::filesystem::exists(f)) std::filesystem::create_directories(f); // create folder if it not already exists
 #endif // UTILITIES_NO_CPP17
 }
 inline string create_file_extension(const string& filename, const string& extension) {
