@@ -452,7 +452,15 @@ public:
   inline void compile_kernel(std::string opt = ""){
       if(!this->kernel_compiled){ // avoid unnecessary recomiles
       cl::Program::Sources cl_source;
-      compiled_code = enable_device_capabilities()+"\n"+c_code+kernel_code;
+      
+      // 🚀 Sicherstellen, dass die mathematische Bibliothek im R-Thread niemals leer ist
+      std::string secure_c_code = get_opencl_c_code();
+      compiled_code = enable_device_capabilities() + "\n" + secure_c_code + "\n" + kernel_code;
+
+#ifdef _WIN32
+      compiled_code += "\n\0";
+#endif
+      
       cl_source.push_back({ compiled_code.c_str(), compiled_code.length() });
       this->cl_program = cl::Program(info.cl_context, cl_source);
       const string build_options = opt+" -cl-std=CL"+info.opencl_c_version+" -cl-finite-math-only -cl-no-signed-zeros -cl-mad-enable"+(info.patch_intel_gpu_above_4gb ? " -cl-intel-greater-than-4GB-buffer-required" : "");
