@@ -28,7 +28,7 @@ int main() {
   device.compile_kernel();
 
   string code = device.get_c_code()+device.get_kernel_code();
-  std::cout << "CL C code\n" << code << std::endl;
+  // std::cout << "CL C code\n" << code << std::endl;
 
   
   const uint N = 10u; //1024u; // size of vectors
@@ -61,7 +61,7 @@ int main() {
 #endif  
 
   code = device.get_c_code()+device.get_kernel_code();
-  std::cout << "runif CL C code\n" << code << std::endl;
+  //std::cout << "runif CL C code\n" << code << std::endl;
   
 
   Memory<float> OutputF;(device, N);
@@ -139,6 +139,34 @@ int main() {
     // copy data from device memory to host memory
   
     std::cout << "r_norm <- c(";;
+    if(device.info.is_fp64_capable){ 
+      OutputD.read_from_device(); 
+      for(auto i=0; i<OutputD.length(); i++){
+        std::cout << (double)OutputD[i];
+        if(i<OutputF.length()-1)
+        std::cout << ", ";
+      }
+    } else {
+      OutputF.read_from_device();
+      for(auto i=0; i<OutputF.length(); i++){
+        std::cout << (double)OutputF[i];
+        if(i<OutputF.length()-1)
+        std::cout << ", ";
+      }
+    }
+    std::cout << ")" << std::endl;
+
+    Seed[0]=-42;
+    mean=-10;
+    sd=5;
+    Seed.write_to_device(); // copy data from host memory to device memory
+    
+    // run add_kernel on the device
+    norm_rng.run();
+    
+    // copy data from device memory to host memory
+  
+    std::cout << "r_norm_second_run <- c(";;
     if(device.info.is_fp64_capable){ 
       OutputD.read_from_device(); 
       for(auto i=0; i<OutputD.length(); i++){

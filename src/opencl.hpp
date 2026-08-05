@@ -324,6 +324,7 @@ private:
   string kernel_file;
   string kernel_name;
   string kernel_path;
+  bool kernel_loaded = false;
   bool kernel_compiled = false;
 	inline string enable_device_capabilities() const { return // enable FP64/FP16 capabilities if available
 		string(info.patch_nvidia_fp16         ? "\n #define cl_khr_fp16"                : "")+ // Nvidia Pascal and newer GPUs with driver>=520.00 don't report cl_khr_fp16, but do support basic FP16 arithmetic
@@ -428,11 +429,13 @@ public:
     ////
 
     ////
-  inline void load_kernel(string path, string file){
+  inline void load_kernel(string path, string file, bool force_load = false){
     print_info("loading kernel from >"+path+"< / >"+file+"< over >"+this->kernel_name+"<\n");
-    if(equals_regex(file,"^"+this->kernel_name+"$")){
-             print_warning("kernel >"+this->kernel_name+"< already loaded: " + file +"\n");
-	    } else {
+        // Wenn Pfad und Datei absolut identisch sind UND wir nicht zum Neuladen gezwungen werden -> ABBRECHEN!
+    if (!force_load && this->kernel_path == path && this->kernel_name == file) {
+        print_warning("kernel >"+this->kernel_name+"< already loaded: " + file +"\n");
+        return;
+    }
       this->kernel_compiled = false; // force recompile
       string target_file = path;
       if (!target_file.empty() && target_file.back() != '/' && target_file.back() != '\\') {
@@ -456,15 +459,19 @@ public:
         this->set_kernel_code(kernel_source);
         this->kernel_name=file;
         this->kernel_path=path;
-        
+        this->kernel_loaded=true;
+
         print_info("successfuly loaded kernel from >"+this->kernel_path+"< / >"+this->kernel_name+"<\n");
       } else {
         print_error("kernel not found: " + target_file);
       } 
-    }
+    
   }
-  inline void compile_kernel(std::string opt = ""){
-      if(!this->kernel_compiled){ // avoid unnecessary recomiles
+  inline void compile_kernel(std::string opt = "", bool force_recompile = false){
+      if (!force_recompile && this->kernel_compiled) {
+	      print_info("skipping compile step");
+        return;
+      }
       cl::Program::Sources cl_source;
 
       // 🚀 Sicherstellen, dass die mathematische Bibliothek im R-Thread niemals leer ist
@@ -512,7 +519,6 @@ public:
       write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>()[0][0]); // save binary (ptx file)
 #endif // PTX
   }
-    }
 };
 
 template<typename T> class Memory {

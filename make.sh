@@ -22,7 +22,7 @@ case "$(uname -a)" in # automatically detect operating system
         
         # Wenn Version 10.x und kleiner als 10.15, hänge das Linker-Flag an
         if [ "$MACOS_MAJOR" -eq 10 ] && [ "$MACOS_MINOR" -lt 15 ]; then
-            MAC_FLAGS="$MAC_FLAGS -lstdc++fs"
+            MAC_FLAGS="$MAC_FLAGS" ### " -lstdc++fs"
         fi
 
         g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -std=c++17 -pthread -O -Wno-comment -I./src/OpenCL/include $MAC_FLAGS
