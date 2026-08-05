@@ -353,7 +353,7 @@ public:
 	inline Device(const Device_Info& info, const string& opencl_c_code=get_opencl_c_code()) {
 		print_device_info(info);
 		this->info = info;
-        this->c_code = opencl_c_code;
+        this->c_code = "";
 #ifdef _WIN32
   // Zwingt den NVIDIA-Treiber unter Windows im R-Thread zu strikt synchronem 
   // In-Order-Verhalten, wodurch der asynchrone Kernel-Lock physikalisch unmöglich wird!
@@ -392,7 +392,10 @@ public:
         */
   		this->exists = true;
 	}
-	inline Device() {} // default constructor
+	inline Device() {
+	   this->c_code = "";
+           this->kernel_compiled = false;
+	} // default constructor
 	inline void barrier(const vector<Event>* event_waitlist=nullptr, Event* event_returned=nullptr) { cl_queue.enqueueBarrierWithWaitList(event_waitlist, event_returned); }
 	inline void finish_queue() { cl_queue.finish(); }
 	inline cl::Context get_cl_context() const { return info.cl_context; }
@@ -473,7 +476,9 @@ public:
         return;
       }
       cl::Program::Sources cl_source;
-
+      if (this->c_code.empty()) {
+ 	this->c_code = get_opencl_c_code();
+      }
       // 🚀 Sicherstellen, dass die mathematische Bibliothek im R-Thread niemals leer ist
       // std::string secure_c_code = get_opencl_c_code();
 
