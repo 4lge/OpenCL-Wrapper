@@ -435,7 +435,7 @@ public:
   inline void load_kernel(string path, string file, bool force_load = false){
     print_info("loading kernel from >"+path+"< / >"+file+"< over >"+this->kernel_name+"<\n");
         // Wenn Pfad und Datei absolut identisch sind UND wir nicht zum Neuladen gezwungen werden -> ABBRECHEN!
-    if (!force_load && this->kernel_path == path && this->kernel_name == file) {
+    if (!force_load && this->kernel_compiled && this->kernel_path == path && this->kernel_file == file) {
         print_warning("kernel >"+this->kernel_name+"< already loaded: " + file +"\n");
         return;
     }
@@ -490,22 +490,14 @@ public:
 #endif
      
 
-      // 🚀 DIAGNOSE-TURBO: Zeigt uns ungeschminkt, was Nvidia im RAM sieht!
-      //std::cout << "\n==================================================" << std::endl;
-      //std::cout << "DEBUG: Sende folgenden Code an den OpenCL-Treiber:" << std::endl;
-      //std::cout << "==================================================" << std::endl;
-      //std::cout << compiled_code << std::endl;
       print_info(compiled_code);
-      //std::cout << "==================================================" << std::endl;
-      //std::cout << "DEBUG: Code-Laenge im RAM: " << compiled_code.length() << " Bytes." << std::endl;
-      //std::cout << "==================================================\n" << std::endl;
 
 
       cl_source.push_back({ compiled_code.c_str(), compiled_code.length() });
       this->cl_program = cl::Program(info.cl_context, cl_source);
       const string build_options = opt+" -cl-std=CL"+info.opencl_c_version+" -cl-finite-math-only -cl-no-signed-zeros -cl-mad-enable"+(info.patch_intel_gpu_above_4gb ? " -cl-intel-greater-than-4GB-buffer-required" : "");
 #ifndef LOG
-      int error = cl_program.build({ info.cl_device }, (build_options+" -w").c_str()); // compile OpenCL C code, disable warnings
+      int error = cl_program.build({ this->info.cl_device }, (build_options+" -w").c_str()); // compile OpenCL C code, disable warnings
       if(error) print_warning(cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device)); // print build log
 #else // LOG, generate logfile for OpenCL code compilation
       int error = cl_program.build({ this->info.cl_device }, build_options.c_str()); // compile OpenCL C code
