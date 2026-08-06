@@ -3,6 +3,7 @@
 #ifdef WITH_ERROR_LOOKUP
   #include <cl_error_lookup.hpp>
 #endif
+#include <new>
 
 #define WORKGROUP_SIZE 64 // needs to be 64 to fully use AMD GPUs
 //#define PTX
@@ -351,6 +352,22 @@ private:
 		"\n #endif"
 	;}
 public:
+    // 🚀 DER NATIVE HARDWARE-TRANSFORMATOR (Nutzt Placement New)
+    inline void initialize_hardware(const Device_Info& info) {
+        // 1. Falls das Gerät schon aktiv war, rufen wir den Destruktor auf,
+        // um alte Kontext- und Queue-Ressourcen der vorherigen Karte sauber freizugeben.
+        if (this->exists) {
+            this->~Device();
+        }
+
+        // 2. ⚡ PLACEMENT NEW: Wir führen Ihren großen, originalen Konstruktor
+        // haargenau auf der Speicheradresse von "this" (dem globalen Singleton) neu aus!
+        new (this) Device(info);
+
+        // 3. Cache-Flags für das neue Gerät sicher zurücksetzen
+        this->kernel_compiled = false;
+        this->c_code = "";
+    }
 	Device_Info info;
 	inline Device(const Device_Info& info, const string& opencl_c_code=get_opencl_c_code()) {
 		print_device_info(info);
