@@ -1,6 +1,7 @@
 #include "opencl.hpp"
 
 int main() {
+try {
   //Device device(select_device_with_most_flops()); // compile OpenCL C code for the fastest available device
   Device device(select_device_with_most_memory()); // compile OpenCL C code for the fastest available device
   //Device device(select_device_with_most_flops()); // compile OpenCL C code for the fastest available device
@@ -188,4 +189,26 @@ int main() {
 
   wait();
   return 0;
+  } 
+#ifdef CL_HPP_ENABLE_EXCEPTIONS
+  catch (const cl::Exception& e) {
+        print_error("OpenCL error: " + std::string(e.what()));
+
+        // 🚀 DER LOOKUP-TURBO: Wir jagen die Fehler-ID durch Ihr integriertes CLErrorLookup!
+        std::string detailed_error = clerror::get_error_full(e.err());
+        print_error("Details -> " + detailed_error);
+
+        return 1;
+}
+#endif
+    catch (const std::runtime_error& e) {
+        print_error("runtime error: " + std::string(e.what()));
+        return 2;
+    }
+    catch (...) {
+	print_error("unknown eroor during exception!");
+        return 3;
+    }
+
+    return 0;
 }
