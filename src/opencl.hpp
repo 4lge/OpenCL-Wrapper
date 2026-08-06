@@ -1,6 +1,8 @@
 #pragma once
 
-
+#ifdef WITH_ERROR_LOOKUP
+  #include <cl_error_lookup.hpp>
+#endif
 
 #define WORKGROUP_SIZE 64 // needs to be 64 to fully use AMD GPUs
 //#define PTX
@@ -508,6 +510,16 @@ public:
       if(error) {
 	      print_error("OpenCL C code compilation failed with error code "+to_string(error)+". Make sure there are no errors in kernel.cpp.");
 	      this->kernel_compiled = false;
+#ifdef WITH_ERROR_LOOKUP
+        // Wenn OpenCLeaR im Hintergrund baut, nutzen wir die volle Erklärung:
+        std::string detailed_error = clerror::get_error_full((int)error);
+        print_error("OpenCL Runtime Exception -> " + detailed_error);
+#else
+        // Wenn der Wrapper STANDALONE läuft (make.sh oder Visual Studio),
+        // bleibt er komplett unabhängig und wirft nur die nackte Zahl:
+        print_error("OpenCL C code compilation failed with error code: " + to_string((int)error));
+#endif
+	      
       } else {
 	      print_info("OpenCL C code successfully compiled.");
 	      this->kernel_compiled = true;
