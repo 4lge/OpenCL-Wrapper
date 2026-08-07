@@ -447,6 +447,11 @@ public:
       return this->kernel_path;
     }
     ////
+    // 🚀 NEU: Ermöglicht das direkte Injizieren von Kernel-Code als RAM-String!
+    inline void set_kernel_source(const std::string& source_code) {
+        this->c_code = source_code;
+        this->kernel_compiled = false; // Erzwingt, dass beim nächsten compile_kernel() frisch gebaut wird
+    }
 
     ////
   inline void load_kernel(string path, string file, bool force_load = false){
