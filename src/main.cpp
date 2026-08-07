@@ -2,6 +2,7 @@
 
 int main() {
 try {
+ get_opencl_print_enabled() = true;
   //Device device(select_device_with_most_flops()); // compile OpenCL C code for the fastest available device
   Device device(select_device_with_most_memory()); // compile OpenCL C code for the fastest available device
   //Device device(select_device_with_most_flops()); // compile OpenCL C code for the fastest available device

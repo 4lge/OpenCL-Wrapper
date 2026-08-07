@@ -1,5 +1,11 @@
 #pragma once
 
+inline bool& get_opencl_print_enabled() {
+    static bool enabled = false; 
+    return enabled;
+}
+
+
 #define UTILITIES_REGEX
 #define UTILITIES_FILE
 #define CONSOLE_WIDTH 79
@@ -567,6 +573,7 @@ template<typename T> inline string alignr(const uint n, const T x) { // converts
 }
 
 inline void print(const string& s="") {
+        if (!get_opencl_print_enabled()) return;
 #ifdef _WIN32
     // Unter Windows zwingen wir R, den Puffer SOFORT zu leeren, 
     // anstatt ihn asynchron anzustauen!
@@ -577,6 +584,7 @@ inline void print(const string& s="") {
 	std::cout << s;
 }
 inline void println(const string& s="") {
+        if (!get_opencl_print_enabled()) return;
 #ifdef _WIN32
     std::cout << s << "\n" << std::flush;
 #else
