@@ -10,9 +10,10 @@ inline bool& get_opencl_print_enabled() {
 #define UTILITIES_FILE
 #define CONSOLE_WIDTH 79
 #define UTILITIES_NO_CPP17
-
+#ifdef _MSC_VER
 #pragma warning(disable:26451)
 #pragma warning(disable:6386)
+#endif
 #include <cmath>
 #include <vector>
 #include <string>
