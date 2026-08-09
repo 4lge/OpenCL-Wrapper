@@ -451,9 +451,11 @@ public:
     inline void set_kernel_source(const std::string& source_code) {
         this->kernel_code = source_code;
         this->kernel_compiled = false; // Erzwingt, dass beim nächsten compile_kernel() frisch gebaut wird
+        this->kernel_name="STDIN";
+        this->kernel_path="";
+        this->kernel_loaded=true;
     }
 
-    ////
   inline void load_kernel(string path, string file, bool force_load = false){
     print_info("loading kernel from >"+path+"< / >"+file+"< over >"+this->kernel_name+"<\n");
         // Wenn Pfad und Datei absolut identisch sind UND wir nicht zum Neuladen gezwungen werden -> ABBRECHEN!

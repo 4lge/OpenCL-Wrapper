@@ -28,6 +28,8 @@ case "$(uname -a)" in # automatically detect operating system
         g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++17 -pthread -O -Wno-comment -I./src/OpenCL/include $MAC_FLAGS
         ;; 
 	*Android) g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++17 -pthread -O -Wno-comment -I./src/OpenCL/include -L/system/vendor/lib64 -lOpenCL ;; # Android
+	*Windows*) 
+		PATH=$PATH:"C:\RBuildTools\4.4\x86_64-w64-mingw32.static.posix\bin" g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++17 -pthread -O -Wno-comment -I./src/OpenCL/include -L./src/OpenCL/lib -lOpenCL     ;; # Linux
 	*       ) g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++17 -pthread -O -Wno-comment -I./src/OpenCL/include -L./src/OpenCL/lib -lOpenCL     ;; # Linux
 esac
 
