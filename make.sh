@@ -11,13 +11,13 @@ rm -f bin/OpenCL-Wrapper # prevent execution of old version if compiling fails
 
 case "$(uname -a)" in # automatically detect operating system
 	 Darwin*) 
-        # Holt die macOS-Version (z.B. "10.14.6" oder "11.1")
+        # get macOS-Version (e.g. "10.14.6" or "11.1")
         MACOS_VER=$(sw_vers -productVersion)
-        # Extrahiert die Haupt- und Nebenversionsnummer
+        # extract MAJOR AND MINR NUMBER
         MACOS_MAJOR=$(echo "$MACOS_VER" | cut -d. -f1)
         MACOS_MINOR=$(echo "$MACOS_VER" | cut -d. -f2)
         
-        # Initialisiere die zusätzlichen Flags für den Mac
+        # add mocos specific flags
         MAC_FLAGS="-framework OpenCL"
         
         # Wenn Version 10.x und kleiner als 10.15, hänge das Linker-Flag an
@@ -28,8 +28,25 @@ case "$(uname -a)" in # automatically detect operating system
         g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++17 -pthread -O -Wno-comment -I./src/OpenCL/include $MAC_FLAGS
         ;; 
 	*Android) g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++17 -pthread -O -Wno-comment -I./src/OpenCL/include -L/system/vendor/lib64 -lOpenCL ;; # Android
-	*Windows*) 
-		PATH=$PATH:"C:\RBuildTools\4.4\x86_64-w64-mingw32.static.posix\bin" g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++17 -pthread -O -Wno-comment -I./src/OpenCL/include -L./src/OpenCL/lib -lOpenCL     ;; # Linux
+        *Windows*|*MINGW*|*MSYS*)
+                echo "🚀 Starte Standalone-Build mit RTools GCC..."
+                # Pfad mit Vorwärts-Slashes erweitern und g++ zünden
+                PATH="$PATH:/c/RBuildTools/4.4/x86_64-w64-mingw32.static.posix/bin"
+                
+                g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper.exe \
+                    -I./ -std=c++17 -pthread -Wno-comment \
+                    -I./src/OpenCL/include -L./src/OpenCL/lib -lOpenCL
+                
+                if [ $? -eq 0 ]; then
+                    echo "✅ Kompilierung erfolgreich! Starte Anwendung..."
+                    ./bin/OpenCL-Wrapper.exe
+                else
+                    echo "❌ GCC Compilation fehlgeschlagen!"
+                fi
+                
+                echo "🛑 [PAUSE] Drücken Sie [ENTER] um dieses Fenster zu schließen..."
+                read
+                ;;
 	*       ) g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++17 -pthread -O -Wno-comment -I./src/OpenCL/include -L./src/OpenCL/lib -lOpenCL     ;; # Linux
 esac
 

@@ -516,6 +516,10 @@ public:
 
       print_info(compiled_code);
 
+#ifdef _WIN32
+#include <thread>
+#include <chrono>
+#endif
 
       cl_source.push_back({ compiled_code.c_str(), compiled_code.length() });
       this->cl_program = cl::Program(info.cl_context, cl_source);
@@ -716,6 +720,13 @@ public:
 	inline const T operator()(const ulong i, const uint dimension) const { return host_buffer[i+(ulong)dimension*N]; } // array of structures
 	inline void read_from_device(const bool blocking=true, const vector<Event>* event_waitlist=nullptr, Event* event_returned=nullptr) {
 		if(host_buffer_exists&&device_buffer_exists&&!is_zero_copy) {
+#ifdef _WIN32
+				// 🛡️ DER WINDOWS-DEADLOCK-BRECHER:
+				// Zwingt Windows, die Befehlskette sofort an die RTX 4080 / Intel Iris abzufeuern, 
+				// und gibt dem Scheduler Zeit für den Thread-Wechsel, damit R nicht einfriert!
+				clFlush(cl_queue()); 
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+#endif
 			cl_queue.enqueueReadBuffer(device_buffer, blocking, 0ull, capacity(), (void*)host_buffer, event_waitlist, event_returned);
 		}
 	}
@@ -727,7 +738,13 @@ public:
 	inline void read_from_device(const ulong offset, const ulong length, const bool blocking=true, const vector<Event>* event_waitlist=nullptr, Event* event_returned=nullptr) {
 		if(host_buffer_exists&&device_buffer_exists&&!is_zero_copy) {
 			const ulong safe_offset=min(offset, range()), safe_length=min(length, range()-safe_offset);
-			if(safe_length>0ull) cl_queue.enqueueReadBuffer(device_buffer, blocking, safe_offset*sizeof(T), safe_length*sizeof(T), (void*)(host_buffer+safe_offset), event_waitlist, event_returned);
+			if(safe_length>0ull) {
+#ifdef _WIN32
+				clFlush(cl_queue()); 
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+#endif
+			cl_queue.enqueueReadBuffer(device_buffer, blocking, safe_offset*sizeof(T), safe_length*sizeof(T), (void*)(host_buffer+safe_offset), event_waitlist, event_returned);
+                        }
 		}
 	}
 	inline void write_to_device(const ulong offset, const ulong length, const bool blocking=true, const vector<Event>* event_waitlist=nullptr, Event* event_returned=nullptr) {
