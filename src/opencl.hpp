@@ -409,6 +409,38 @@ public:
         */
   		this->exists = true;
 	}
+// Dieser neue Konstruktor ergänzt deine Klasse, ohne die alten zu löschen!
+// Korrigierter neuer Konstruktor für externe/flüchtige Handles:
+inline Device(cl_context ext_context, cl_device_id ext_device, cl_command_queue ext_queue) {
+    this->exists = true;
+    this->c_code = "";
+    this->kernel_compiled = false;
+
+    // 1. Info-Struktur befüllen oder minimal-anlegen, 
+    // damit info.cl_context / info.cl_device für andere Klassen greifbar sind
+    this->info.cl_context = ext_context;
+    this->info.cl_device = ext_device;
+    this->info.opencl_c_version = "3.0"; // Entsprechend anpassen falls nötig
+    this->info.patch_intel_gpu_above_4gb = false;
+    this->info = info; // falls get_device_info(ext_device) existiert, das stattdessen nutzen:
+    // this->info = get_device_info(ext_device); 
+
+    // 2. Wichtig: Die C++-Binding Variable 'cl_queue' füttern, 
+    // damit Kernel/Memory nicht auf eine tote Queue zugreifen!
+#ifdef _WIN32
+    // Deine Windows-Synchron-Sicherheitskopie für die externe Queue
+    cl_int err = CL_SUCCESS;
+    this->cl_queue = cl::CommandQueue(ext_context, ext_device, CL_QUEUE_PROFILING_ENABLE, &err);
+    if (err != CL_SUCCESS) {
+        print_error("Fehler beim Übernehmen der externen CommandQueue unter Windows: " + to_string((int)err));
+    }
+#else
+    this->cl_queue = cl::CommandQueue(ext_context, ext_device);
+#endif
+
+    print_device_info(this->info);
+}
+	
 	inline Device() {
 	   this->c_code = "";
            this->kernel_compiled = false;
