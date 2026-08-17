@@ -25,7 +25,8 @@ case "$(uname -a)" in # automatically detect operating system
             MAC_FLAGS="$MAC_FLAGS" ### " -lstdc++fs"
         fi
 
-        g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++17 -pthread -O -Wno-comment -I./src/OpenCL/include $MAC_FLAGS
+        g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++14 -pthread -O -Wno-comment -I./src/OpenCL/include $MAC_FLAGS
+        #g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++17 -pthread -O -Wno-comment -I./src/OpenCL/include $MAC_FLAGS
         ;; 
 	*Android) g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++17 -pthread -O -Wno-comment -I./src/OpenCL/include -L/system/vendor/lib64 -lOpenCL ;; # Android
         *Windows*|*MINGW*|*MSYS*)
