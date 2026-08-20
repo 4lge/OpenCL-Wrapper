@@ -80,7 +80,7 @@ sudo ln -sf /opt/intel/${TBBV}/lib/intel64/gcc4.8/libtbbmalloc.so.2 /opt/intel/$
 sudo ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
 sudo rm -r ~/cpurt
 
-)"+string("\033[33m")+R"(.-----------------------------------------------------------------------------.
+)"+string("\0933[33m")+R"(.-----------------------------------------------------------------------------.
 | CPU Option 2: PoCL                                                          |
 '-----------------------------------------------------------------------------'
 sudo apt update && sudo apt upgrade -y
@@ -411,30 +411,29 @@ public:
   }
   // Dieser neue Konstruktor ergänzt deine Klasse, ohne die alten zu löschen!
   // Korrigierter Konstruktor in deiner src/opencl.hpp:
+  // 🚀 DIE ABSOLUTE RETTUNG FÜR DEN WINDOWS- deadLOCK:
   inline Device(cl_context ext_context, cl_device_id ext_device, cl_command_queue ext_queue) {
     this->exists = true;
     this->c_code = "";
     this->kernel_compiled = false;
 
-    // 1. Info-Struktur grob füttern
-    this->info.cl_context = ext_context;
-    this->info.cl_device = ext_device;
-    this->info.opencl_c_version = "3.0";
-    this->info.patch_intel_gpu_above_4gb = false;
-
-    // 2. C++ Wrapper Context aus dem rohen cl_context erzeugen
-    // (false bedeutet hier: keinen Refcount erhöhen, da wir die Handles extern verwalten)
+    // 1. Typsichere Khronos C++-Klassenreferenzen temporär erzeugen (retain=true)
     cl::Context cpp_context(ext_context, true);
+    cl::Device  cpp_device(ext_device, true);
 
-    // 3. Entweder die übergebene cl_command_queue direkt dem C++-Objekt zuweisen:
-    this->cl_queue = cl::CommandQueue(ext_queue, true);
+    // 2. ⚡ DIE HARDWARE-ERKENNUNG ZÜNDEN:
+    // Das ruft das originale ProjectPhysX-Sammelwerk auf, scannt den echten Takt,
+    // den VRAM und die CUs deiner Hardware (RTX 4080 / Intel Iris)!
+    this->info = Device_Info(cpp_device, cpp_context, 0u);
 
-    // Alternativ, falls du sie neu erzeugen willst über den cpp_context:
-    // this->cl_queue = cl::CommandQueue(cpp_context, ext_device, 0);
+    // 3. Die langlebigen Session-Handles der Basisklasse zuweisen
+    this->info.cl_context = ext_context;
+    this->info.cl_device  = ext_device;
+    this->info.opencl_c_version = "3.0";
+    this->cl_queue        = cl::CommandQueue(ext_queue, true);
 
     print_device_info(this->info);
   }
-
   inline Device() {
     this->c_code = "";
     this->kernel_compiled = false;
