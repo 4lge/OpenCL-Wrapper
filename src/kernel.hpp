@@ -3,7 +3,7 @@
 #include "utilities.hpp"
 #define R(...) string(" "#__VA_ARGS__" ") // evil stringification macro, similar syntax to raw string R"(...)"
 
-//// string opencl_c_container(); // outsourced to kernel.cpp
+string opencl_c_container(); // outsourced to kernel.cpp
 // 🚀 DIE RETTUNG FÜR DIE WINDOWS-DLL-LINKAGE:
 // Das zwingt Rtools/MinGW, das Symbol unverstümmelt zu exportieren,
 // damit rnormcl.cpp den echten String ausliest!
