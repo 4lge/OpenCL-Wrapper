@@ -418,7 +418,7 @@ public:
     // 1. Geteilte Handles zuweisen.
     // 🛡️ WICHTIG: Wir rufen den reinen Zuweisungs-Konstruktor OHNE 'true' (retain) auf.
     // Dadurch übernimmt das Stack-Objekt die Queue flüchtig, zerstört sie aber am Ende der Funktion NICHT!
-    this->cl_queue = cl::CommandQueue(ext_queue);
+    this->cl_queue = cl::CommandQueue(ext_queue,true);
 
     // 2. Info-Struktur der Basisklasse mit stabilen Alibi-Werten mappen.
     // Das verhindert riskante Treiber-Abfragen im R-Thread und rettet Windows/Intel vor dem CU-Zero-Freeze!
