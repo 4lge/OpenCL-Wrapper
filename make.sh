@@ -27,7 +27,7 @@ case "$(uname -a)" in # automatically detect operating system
             MAC_FLAGS="$MAC_FLAGS" ### " -lstdc++fs"
         fi
 
-        g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++14 -pthread -O -Wno-comment -I./src/OpenCL/include $MAC_FLAGS
+        g++ -g0 -O3 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++14 -pthread -O -Wno-comment -I./src/OpenCL/include $MAC_FLAGS
         #g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++17 -pthread -O -Wno-comment -I./src/OpenCL/include $MAC_FLAGS
         ;; 
 	*Android) g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++17 -pthread -O -Wno-comment -I./src/OpenCL/include -L/system/vendor/lib64 -lOpenCL ;; # Android
@@ -50,7 +50,7 @@ case "$(uname -a)" in # automatically detect operating system
                 echo "🛑 [PAUSE] Drücken Sie [ENTER] um dieses Fenster zu schließen..."
                 read
                 ;;
-	*       ) g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++17 -pthread -O -Wno-comment -I./src/OpenCL/include -L./src/OpenCL/lib -lOpenCL     ;; # Linux
+		*       ) g++ -g0 -O3 src/*.cpp -o bin/OpenCL-Wrapper -I./ -std=c++17 -pthread -O -Wno-comment -I./src/OpenCL/include -L./src/OpenCL/lib -lOpenCL     ;; # Linux
 esac
 
 if [[ $? == 0 ]]; then bin/OpenCL-Wrapper "$@"; fi # run executable only if last compilation was successful

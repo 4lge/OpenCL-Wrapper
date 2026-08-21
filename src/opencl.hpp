@@ -543,7 +543,7 @@ public:
 #endif
 
 
-    print_info(compiled_code);
+    //print_info(compiled_code);
 
 #ifdef _WIN32
 #include <thread>
