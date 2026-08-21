@@ -15,8 +15,8 @@ Dieses Dokument fasst die wichtigsten Dateien des Pakets zusammen.
 
 alles unter ./src
 
-### opencl.hpp
-``` r, code=readLines('src/opencl.hpp'), eval=FALSE, echo=TRUE}
+### src/opencl.hpp
+```{r, code=readLines('src/opencl.hpp'), eval=FALSE, echo=TRUE}
 ```
 
 ### src/utilities.hpp
