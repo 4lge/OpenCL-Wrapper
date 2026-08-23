@@ -5,7 +5,7 @@
 
 #define WORKGROUP_SIZE 64 // needs to be 64 to fully use AMD GPUs
 //#define PTX
-// #define LOG
+#define LOG
 
 // https://github.com/KhronosGroup/OpenCL-Headers
 // https://github.com/KhronosGroup/OpenCL-CLHPP

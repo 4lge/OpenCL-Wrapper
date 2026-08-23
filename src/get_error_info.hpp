@@ -1,12 +1,19 @@
 /* Copyright (c) 2024 Otto Link. Distributed under the terms of the GNU General
  * Public License. The full license is in the file LICENSE, distributed with
  * this software. */
-#include "cl_error_lookup.hpp"
+#pragma once
+#include <string>
 
 namespace clerror
 {
-
-ErrorInfo get_error_info(int code)
+struct ErrorInfo
+{
+  int         code = 1;
+  std::string flag = "UNKNOWN CODE";
+  std::string description = "UNKNOWN CODE";
+  std::string type = "UNKNOWN CODE";
+};
+inline ErrorInfo get_error_info(int code)
 {
   ErrorInfo error_info;
 
