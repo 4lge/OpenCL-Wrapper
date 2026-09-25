@@ -21,6 +21,9 @@
 #define CL_HPP_TARGET_OPENCL_VERSION 300
 #define CL_HPP_MINIMUM_OPENCL_VERSION 100
 
+
+std::string CLGetHardwareCachePath();
+
 inline std::string get_opencl_c_code() {
   return "\n";
 }
@@ -166,36 +169,74 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat) {
     device.set_kernel_source(final_kernel_code);
     checkpoint("3. Kernel-String an device übergeben");
 
-    // 🎯 Auslesen des multiuser-sicheren Pfads aus der R-Session
-    const char* env_path = std::getenv("R_OPENCL_BINARY_PATH");
-    if (env_path == nullptr) {
-        throw std::runtime_error("Fehler: R_OPENCL_BINARY_PATH wurde von R nicht gesetzt!");
-    }
-    std::string binary_path(env_path);
+    // 🎯 DER ULTIMATIVE PLATTFORM- & HARDWARE-SPECIFIC CACHE-PATH
+    std::string os_label = "unknown";
+    std::string arch_label = "x86_64";
+    
+#if defined(__x86_64__) || defined(_M_X64)
+    arch_label = "x86_64";
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    arch_label = "arm64";
+#endif
 
-    // Prüfen, ob die Datei bereits existiert
+#if defined(_WIN32)
+    os_label = "windows_" + arch_label;
+#elif defined(__APPLE__)
+    os_label = "macos_" + arch_label;
+#elif defined(__linux__)
+    os_label = "linux_" + arch_label;
+#endif
+
+    std::string platform_name = best_platform->getInfo<CL_PLATFORM_NAME>();
+    std::string device_name = best_device->getInfo<CL_DEVICE_NAME>();
+    
+    // Lambda zum Bereinigen von Leer- und Sonderzeichen für Windows/Linux/Mac-Ordnerpfade
+    auto clean_str = [](std::string s) {
+        std::string res = "";
+        for (char c : s) {
+            if (std::isalnum(c)) res += std::tolower(c);
+            else if (c == ' ' || c == '-' || c == '_') res += '_';
+        }
+        return res;
+    };
+    ////////
+    // Baut exakt: .cl_cache/macos_arm64/apple/apple_m3... oder .cl_cache/windows_x86_64/...
+        // 🎯 Der plattform- und hardware-spezifische Pfad wird berechnet:
+    std::string target_dir = "./.cl_cache/" + os_label + "/" + clean_str(platform_name) + "/" + clean_str(device_name);
+    
+    Rcpp::Function r_dir_create("dir.create");
+    r_dir_create(target_dir, Rcpp::Named("recursive", true), Rcpp::Named("showWarnings", false));
+
+    std::string binary_path = CLGetHardwareCachePath();
+
+    // 🚀 KORREKTUR: Die Rückmeldung MUSS vor der if-Bedingung stehen!
+    // Damit weiß R immer sofort, wo das File liegt.
+    Rcpp::Function r_sys_setenv("Sys.setenv");
+    r_sys_setenv(Rcpp::Named("R_OPENCL_GENERATED_PATH", binary_path));
+
+    // Erst JETZT prüfen wir, ob die Datei da ist
     std::ifstream check_file(binary_path, std::ios::binary);
     bool binary_exists = check_file.good();
     check_file.close();
 
-   if (binary_exists) {
+    if (binary_exists) {
         // 🚀 HIGH-SPEED: Lade fertiges Binary
         device.load_compiled_binary(binary_path);
         checkpoint("4. Vorkompiliertes Binary direkt geladen (JIT übersprungen)");
     } else {
-        // 🛠️ BUILD-PFAD: Kompiliert regulär
+        // 🛠️ BUILD-PFAD: Kompiliert regulär und exportiert danach
         std::string compile_flags = "-cl-opt-disable";
         device.compile_kernel(compile_flags, false);
         checkpoint("4. JIT-Compiler über Wrapper beendet (compile_kernel)");
 
-        // 💾 DER ECHTE BINÄR-EXPORT INS TEMPDIR:
+        // 💾 DER KORREKTE BINÄR-EXPORT (Greift tief in das Khronos-Vektor-Layout):
         auto bin_data = device.get_cl_program().getInfo<CL_PROGRAM_BINARIES>();
-        if (!bin_data.empty() && bin_data.size() > 0) {
-            std::ofstream out(binary_path, std::ios::binary);
-            // bin_data[0] enthält den Byte-Vektor des ersten Geräts
-            out.write((char*)bin_data[0].data(), bin_data[0].size());
-            out.close();
-            std::cout << "💾 OpenCL-Binary erfolgreich im Temp-Verzeichnis exportiert." << std::endl;
+        if (!bin_data.empty() && bin_data[0].size() > 0) {
+          std::ofstream out(binary_path, std::ios::binary);
+          // 🎯 FIX: Wir schreiben den Inhalt des ERSTEN inneren Vektors & dessen echte Byte-Länge!
+          out.write((char*)bin_data[0].data(), bin_data[0].size());
+          out.close();
+          std::cout << "💾 OpenCL-Binary erfolgreich exportiert: " << binary_path << " (" << bin_data[0].size() << " Bytes)" << std::endl << std::flush;
         }
     }
     
@@ -260,4 +301,62 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat) {
   }
 
   return outmat;
+}
+
+
+// [[Rcpp::export]]
+std::string CLGetHardwareCachePath() {
+    // 1. Hardware-Abfrage (nutzt die gleichen statischen Handles wie der Hauptlauf)
+    static cl::Platform* best_platform = nullptr;
+    static cl::Device* best_device = nullptr;
+    static bool hw_init = false;
+
+    if (!hw_init) {
+        std::vector<cl::Platform> platforms;
+        cl::Platform::get(&platforms);
+        if (!platforms.empty()) {
+            std::vector<cl::Device> devices;
+            platforms[0].getDevices(CL_DEVICE_TYPE_ALL, &devices);
+            if (!devices.empty()) {
+                best_device = new cl::Device(devices[0]);
+                best_platform = new cl::Platform(platforms[0]);
+                hw_init = true;
+            }
+        }
+    }
+
+    if (!hw_init) return "";
+
+    // 2. Architektur und OS-Labels bestimmen
+    std::string os_label = "unknown";
+    std::string arch_label = "x86_64";
+#if defined(__x86_64__) || defined(_M_X64)
+    arch_label = "x86_64";
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    arch_label = "arm64";
+#endif
+
+#if defined(_WIN32)
+    os_label = "windows_" + arch_label;
+#elif defined(__APPLE__)
+    os_label = "macos_" + arch_label;
+#elif defined(__linux__)
+    os_label = "linux_" + arch_label;
+#endif
+
+    std::string platform_name = best_platform->getInfo<CL_PLATFORM_NAME>();
+    std::string device_name = best_device->getInfo<CL_DEVICE_NAME>();
+    
+    auto clean_str = [](std::string s) {
+        std::string res = "";
+        for (char c : s) {
+            if (std::isalnum(c)) res += std::tolower(c);
+            else if (c == ' ' || c == '-' || c == '_') res += '_';
+        }
+        return res;
+    };
+
+    // Baut exakt deine Wunschstruktur: .cl_cache/OS_Arch/Platform/Device/cl_distance_matrix.bin
+    std::string target_dir = "./.cl_cache/" + os_label + "/" + clean_str(platform_name) + "/" + clean_str(device_name);
+    return target_dir + "/cl_distance_matrix.bin";
 }

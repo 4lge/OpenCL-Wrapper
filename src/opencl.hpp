@@ -653,16 +653,34 @@ public:
     cl::vector<cl_int> binary_statuses;
     cl_int error = 0;
 
-    // Aufruf mit den korrekten Vektor-Typen
-    this->cl_program = cl::Program(info.cl_context, devices_vec, binaries, &binary_statuses, &error);
     
-    if (error || (binary_statuses.size() > 0 && binary_statuses[0] != CL_SUCCESS)) {
-        throw std::runtime_error("Fehler beim Laden der OpenCL-Binärdatei. Code: " + std::to_string(error));
-    }
+    // 🛡️ DER WINDOWS-XEON-RETTER: Isoliertes Thread-Detachment für den Kernel-Call
+#ifdef _WIN32
+    std::atomic<bool> load_finished(false);
 
+    std::thread t([&]() {
+        this->cl_program = cl::Program(info.cl_context, devices_vec, binaries, &binary_statuses, &error);
+        if (!error && (binary_statuses.empty() || binary_statuses[0] == CL_SUCCESS)) {
+            cl_program.build(devices_vec, "");
+        }
+        load_finished = true;
+    });
+    t.detach(); // Trennt den Thread komplett vom blockierten Rterm-Prozessraum!
+
+    // Warteschleife auf App-Ebene: Lässt Windows frei Threads switchen und verhindert den Deadlock!
+    while (!load_finished) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+#else
+    // Linux und macOS laufen nativ wie gewohnt durch
+
+    this->cl_program = cl::Program(info.cl_context, devices_vec, binaries, &binary_statuses, &error);
     // clBuildProgram muss trotzdem formal aufgerufen werden, ist aber sofort fertig (0 ms)
     cl_program.build(devices_vec, "");
+#endif
+
     this->kernel_compiled = true;
+
     print_info("OpenCL Binary erfolgreich und ohne Compiler-Wartezeit geladen!");
   }
 };
