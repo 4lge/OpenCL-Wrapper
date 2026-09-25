@@ -630,7 +630,11 @@ public:
 #endif // PTX
   }
   // 🚀 Lädt einen vorkompilierten Binär-Kernel (PTX / SPIR-V / Intel Bin)
+  // 🔬 HOCHAUFLÖSENDES MESSFELD FÜR WINDOWS BINARY LOAD
   inline void load_compiled_binary(const std::string& binary_path) {
+    auto t0 = std::chrono::high_resolution_clock::now();
+    
+    // 1. Datei einlesen
     std::ifstream file(binary_path, std::ios::binary | std::ios::ate);
     if (!file.good()) {
         throw std::runtime_error("OpenCL Binary nicht gefunden: " + binary_path);
@@ -642,46 +646,41 @@ public:
     file.read((char*)buffer.data(), size);
     file.close();
 
-    // Khronos benötigt ein cl::vector (bzw. std::vector) von Byte-Arrays
-    cl::Program::Binaries binaries = { buffer };
-    
-    // 💥 FIX 1: Gerät zwingend in einen cl::vector verpacken
-    cl::vector<cl::Device> devices_vec;
-    devices_vec.push_back(this->info.cl_device);
+    auto t1 = std::chrono::high_resolution_clock::now();
+    std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 1. Datei eingelesen (" << size << " Bytes) | Zeit: " 
+              << std::chrono::duration<double>(t1 - t0).count() << "s" << std::endl << std::flush;
 
-    // 💥 FIX 2: Status-Vektor erzeugen statt raw Pointer
+    // 2. Khronos-Vektoren vorbereiten
+    cl::Program::Binaries binaries = { buffer };
+    cl::vector<cl::Device> devices_vec = { this->info.cl_device };
     cl::vector<cl_int> binary_statuses;
     cl_int error = 0;
 
+    auto t2 = std::chrono::high_resolution_clock::now();
+
+    // 3. Der eigentliche Erzeugungs-API-Call (Verdacht auf Loader Lock / Topologie-Deadlock)
+    std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 2. Starte cl::Program Erzeugung..." << std::endl << std::flush;
     
-    // 🛡️ DER WINDOWS-XEON-RETTER: Isoliertes Thread-Detachment für den Kernel-Call
-#ifdef _WIN32
-    std::atomic<bool> load_finished(false);
-
-    std::thread t([&]() {
-        this->cl_program = cl::Program(info.cl_context, devices_vec, binaries, &binary_statuses, &error);
-        if (!error && (binary_statuses.empty() || binary_statuses[0] == CL_SUCCESS)) {
-            cl_program.build(devices_vec, "");
-        }
-        load_finished = true;
-    });
-    t.detach(); // Trennt den Thread komplett vom blockierten Rterm-Prozessraum!
-
-    // Warteschleife auf App-Ebene: Lässt Windows frei Threads switchen und verhindert den Deadlock!
-    while (!load_finished) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-#else
-    // Linux und macOS laufen nativ wie gewohnt durch
-
     this->cl_program = cl::Program(info.cl_context, devices_vec, binaries, &binary_statuses, &error);
-    // clBuildProgram muss trotzdem formal aufgerufen werden, ist aber sofort fertig (0 ms)
+    
+    auto t3 = std::chrono::high_resolution_clock::now();
+    std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 3. cl::Program beendet | Fehler-Code: " << error 
+              << " | Zeit für diesen Schritt: " << std::chrono::duration<double>(t3 - t2).count() << "s" << std::endl << std::flush;
+
+    if (error || (binary_statuses.size() > 0 && binary_statuses[0] != CL_SUCCESS)) {
+        throw std::runtime_error("Fehler beim Laden der OpenCL-Binärdatei. Code: " + std::to_string(error));
+    }
+
+    // 4. Der Build-Call (Formalität bei Binaries, sollte 0ms dauern)
+    std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 4. Starte cl_program.build()..." << std::endl << std::flush;
+    
     cl_program.build(devices_vec, "");
-#endif
+    
+    auto t4 = std::chrono::high_resolution_clock::now();
+    std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 5. cl_program.build() beendet | Zeit: " 
+              << std::chrono::duration<double>(t4 - t3).count() << "s" << std::endl << std::flush;
 
     this->kernel_compiled = true;
-
-    print_info("OpenCL Binary erfolgreich und ohne Compiler-Wartezeit geladen!");
   }
 };
 
