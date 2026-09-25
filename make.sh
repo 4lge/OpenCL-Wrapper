@@ -34,8 +34,9 @@ case "$(uname -a)" in # automatically detect operating system
         *Windows*|*MINGW*|*MSYS*)
                 echo "🚀 Starte Standalone-Build mit RTools GCC..."
                 # Pfad mit Vorwärts-Slashes erweitern und g++ zünden
-                PATH="$PATH:/c/RBuildTools/4.4/x86_64-w64-mingw32.static.posix/bin"
-                
+		PATH="$PATH:/c/RBuildTools/4.4/x86_64-w64-mingw32.static.posix/bin"
+                # set PATH=C:\rtools45\usr\bin;C:\rtools45\x86_64-w64-mingw32.static.posix\bin;%PATH% 
+                PATH="/c/rtools45/usr/bin:/c/rtools45/x86_64-w64-mingw32.static.posix/bin:$PATH"
                 g++ -g -O0 src/*.cpp -o bin/OpenCL-Wrapper.exe \
                     -I./ -std=c++17 -pthread -Wno-comment \
                     -I./src/OpenCL/include -L./src/OpenCL/lib -lOpenCL

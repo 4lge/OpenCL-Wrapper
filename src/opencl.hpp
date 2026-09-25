@@ -2,10 +2,13 @@
 
 #include "cl_error_lookup.hpp"
 #include <new>
+#include <future>
+#include <thread>
+#include <chrono>
 
 #define WORKGROUP_SIZE 64 // needs to be 64 to fully use AMD GPUs
 //#define PTX
-#define LOG
+//#define LOG
 
 // https://github.com/KhronosGroup/OpenCL-Headers
 // https://github.com/KhronosGroup/OpenCL-CLHPP
@@ -420,8 +423,14 @@ public:
     // 1. Geteilte Handles zuweisen.
     // 🛡️ WICHTIG: Wir rufen den reinen Zuweisungs-Konstruktor OHNE 'true' (retain) auf.
     // Dadurch übernimmt das Stack-Objekt die Queue flüchtig, zerstört sie aber am Ende der Funktion NICHT!
-    this->cl_queue = cl::CommandQueue(ext_queue,true);
 
+#ifdef _WIN32
+    // Windows bleibt bei 'false', um den Treiber-Hänger (Loader Lock) beim Schließen der DLL zu verhindern
+    this->cl_queue = cl::CommandQueue(ext_queue, false);
+#else
+    // Linux/TUXEDO nutzt 'true' (Retaining), um den Segfault beim 2. Durchlauf zu eliminieren
+    this->cl_queue = cl::CommandQueue(ext_queue, true);
+#endif
     // 2. Info-Struktur der Basisklasse mit stabilen Alibi-Werten mappen.
     // Das verhindert riskante Treiber-Abfragen im R-Thread und rettet Windows/Intel vor dem CU-Zero-Freeze!
     this->info.cl_context = ext_context;
@@ -510,7 +519,7 @@ public:
 
       // 🛡️ DER ABSOLUTE WINDOWS-SPEICHER-SCHUTZWALL:
       // Wir zwingen den Windows-Nvidia-Treiber hart dazu, das String-Ende zu sehen!
-      kernel_source += "\n\0";
+      // kernel_source += "\n\0";
 
       this->set_kernel_code(kernel_source);
       this->kernel_name=file;
@@ -539,7 +548,7 @@ public:
 
 
 #ifdef _WIN32
-    compiled_code += "\n\0";
+    //    compiled_code += "\n\0";
 #endif
 
 
@@ -552,27 +561,109 @@ public:
 
     cl_source.push_back({ compiled_code.c_str(), compiled_code.length() });
     this->cl_program = cl::Program(info.cl_context, cl_source);
-    const string build_options = opt+" -cl-std=CL"+info.opencl_c_version+" -cl-finite-math-only -cl-no-signed-zeros -cl-mad-enable"+(info.patch_intel_gpu_above_4gb ? " -cl-intel-greater-than-4GB-buffer-required" : "");
+    // const string build_options = opt+" -cl-std=CL"+info.opencl_c_version+" -cl-finite-math-only -cl-no-signed-zeros -cl-mad-enable"+(info.patch_intel_gpu_above_4gb ? " -cl-intel-greater-than-4GB-buffer-required" : "");
+
+    // 1. Erzeugen Sie die Standard-Optionen
+    string build_options = opt + " -cl-std=CL" + info.opencl_c_version;
+
+    // 2. Fügen Sie die aggressiven Math-Optimierungen NUR hinzu, wenn NICHT deaktiviert werden soll
+    if (opt.find("-cl-opt-disable") == string::npos) {
+      build_options += " -cl-finite-math-only -cl-no-signed-zeros -cl-mad-enable";
+    }
+
+    // 3. Den Intel-Spezial-Patch wie gewohnt anhängen
+    if (info.patch_intel_gpu_above_4gb && !info.is_cpu) {
+      build_options += " -cl-intel-greater-than-4GB-buffer-required";
+    }
 #ifndef LOG
-    int error = cl_program.build({ this->info.cl_device }, (build_options+" -w").c_str()); // compile OpenCL C code, disable warnings
-    if(error) print_warning(cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device)); // print build log
-#else // LOG, generate logfile for OpenCL code compilation
-    int error = cl_program.build({ this->info.cl_device }, build_options.c_str()); // compile OpenCL C code
-    const string log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
-    // write_file("bin/kernel.log", log); // save build log
-    if((uint)log.length()>2u) print_warning(log); // print build log
-#endif // LOG
+    std::string final_options = build_options + " -w";
+#else
+    std::string final_options = build_options;
+#endif
+
+    int error = 0;
+
+#ifdef _WIN32
+    // 🚀 DER DEFINITIVE WINDOWS-RTERM-RETTER (Isolierter Detach-Tunnel)
+    // Wir lagern den Build und die anschließende Treiber-Finalisierung 
+    // in einen komplett losgelösten System-Thread aus, den Rterm nicht sperren kann!
+    
+
+    bool build_finished = false;
+
+    std::thread t([&]() {
+        error = cl_program.build({ this->info.cl_device }, final_options.c_str());
+        build_finished = true;
+    });
+    
+    // Wir trennen den Thread sofort physisch vom Rterm-Prozessraum!
+    t.detach(); 
+
+    // Warteschleife auf App-Ebene (Windows darf frei Threads switchen)
+    while (!build_finished) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+#else
+    // Linux und macOS kompilieren wie gewohnt nativ und ohne Zusatz-Overhead
+    error = cl_program.build({ this->info.cl_device }, final_options.c_str());
+#endif
+
+    // 💥 FEHLER 3 UMANGEN: getBuildInfo blockiert Streams live unter Windows, 
+    // daher holen wir das Log NUR noch im echten Absturzfall ab!
     if(error) {
       this->kernel_compiled = false;
+#ifndef LOG
+      print_warning(cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device));
+#else
+      const std::string log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
+      if((uint)log.length() > 2u) print_warning(log);
+#endif
       std::string detailed_error = clerror::get_error_full((int)error);
       throw std::runtime_error("OpenCL Fatal Exception -> " + detailed_error);
     } else {
       print_info("OpenCL C code successfully compiled.");
       this->kernel_compiled = true;
     }
+
 #ifdef PTX // generate assembly (ptx) file for OpenCL code
     write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>()[0][0]); // save binary (ptx file)
 #endif // PTX
+  }
+  // 🚀 Lädt einen vorkompilierten Binär-Kernel (PTX / SPIR-V / Intel Bin)
+  inline void load_compiled_binary(const std::string& binary_path) {
+    std::ifstream file(binary_path, std::ios::binary | std::ios::ate);
+    if (!file.good()) {
+        throw std::runtime_error("OpenCL Binary nicht gefunden: " + binary_path);
+    }
+    
+    size_t size = file.tellg();
+    file.seekg(0, std::ios::beg);
+    std::vector<unsigned char> buffer(size);
+    file.read((char*)buffer.data(), size);
+    file.close();
+
+    // Khronos benötigt ein cl::vector (bzw. std::vector) von Byte-Arrays
+    cl::Program::Binaries binaries = { buffer };
+    
+    // 💥 FIX 1: Gerät zwingend in einen cl::vector verpacken
+    cl::vector<cl::Device> devices_vec;
+    devices_vec.push_back(this->info.cl_device);
+
+    // 💥 FIX 2: Status-Vektor erzeugen statt raw Pointer
+    cl::vector<cl_int> binary_statuses;
+    cl_int error = 0;
+
+    // Aufruf mit den korrekten Vektor-Typen
+    this->cl_program = cl::Program(info.cl_context, devices_vec, binaries, &binary_statuses, &error);
+    
+    if (error || (binary_statuses.size() > 0 && binary_statuses[0] != CL_SUCCESS)) {
+        throw std::runtime_error("Fehler beim Laden der OpenCL-Binärdatei. Code: " + std::to_string(error));
+    }
+
+    // clBuildProgram muss trotzdem formal aufgerufen werden, ist aber sofort fertig (0 ms)
+    cl_program.build(devices_vec, "");
+    this->kernel_compiled = true;
+    print_info("OpenCL Binary erfolgreich und ohne Compiler-Wartezeit geladen!");
   }
 };
 
