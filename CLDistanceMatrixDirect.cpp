@@ -37,13 +37,18 @@ using namespace Rcpp;
 NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat) {
   get_opencl_print_enabled() = (std::getenv("R_OPENCL_PRINT_ENABLED") != nullptr);
 
+  cl_int err = 0;
+
   // 🚀 DIE DYNAMISCHE SINGLETON-RETTUNG FÜR STANDALONE RUNS:
   // Durch das Schlüsselwort static überleben diese Hardware-Handles im RAM der R-Sitzung.
   // Das verhindert den doppelten Aufruf von clReleaseContext am Funktionsende vollständig!
   static cl::Platform* best_platform = nullptr;
   static cl::Device* best_device = nullptr;
+  // 🚀 Statische Pointer für Linux/Mac (Müssen dort langlebig sein)
+#ifndef _WIN32
   static cl::Context* best_context = nullptr;
   static cl::CommandQueue* best_queue = nullptr;
+#endif
 
   static bool hardware_initialized = false;
   if (!hardware_initialized) {
@@ -78,9 +83,9 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat) {
           if (best_device) delete best_device;
           if (best_platform) delete best_platform;
 
-          // Neue Objekte dynamisch auf dem Heap erzeugen
           best_device = new cl::Device(dev);
           best_platform = new cl::Platform(platform);
+ 
           found = true;
         }
       }
@@ -94,13 +99,23 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat) {
     Rcout << "Selected device: " << best_device->getInfo<CL_DEVICE_NAME>()
           << " on platform: " << best_platform->getInfo<CL_PLATFORM_NAME>() << "\n";
           
-    cl_int err = 0;
+
     // 💥 FIX: Konstruktoren nutzen jetzt die dereferenzierten Heap-Objekte (*best_device)
+    //    best_context = new cl::Context(*best_device);
+    //best_queue = new cl::CommandQueue(*best_context, *best_device, 0, &err);
+    // Linux/Mac initialisiert die langlebigen Pointer genau einmal hier drin
+#ifndef _WIN32
     best_context = new cl::Context(*best_device);
     best_queue = new cl::CommandQueue(*best_context, *best_device, 0, &err);
+#endif
     hardware_initialized = true;
   }
 
+  // 🎯 WINDOWS-SPEZIFISCH: Frisch allokieren bei jedem Aufruf gegen den Intel-Lock
+#ifdef _WIN32
+  cl::Context current_context(*best_device);
+  cl::CommandQueue current_queue(current_context, *best_device, 0, &err);
+#endif
   int rows = mat.nrow();
   int cols = mat.ncol();
   NumericMatrix outmat(rows, rows);
@@ -125,7 +140,11 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat) {
 
     // 🚀 Wir nutzen die langlebigen C-Handles aus den statischen Objekten!
     // 🚀 FIX: Klammern um den Stern und den Variablennamen setzen!
+#ifdef _WIN32
+    Device device(current_context(), (*best_device)(), current_queue());
+#else
     Device device((*best_context)(), (*best_device)(), (*best_queue)());
+#endif
 
     std::string extensions = best_device->getInfo<CL_DEVICE_EXTENSIONS>();
     device.info.is_fp64_capable = (extensions.find("cl_khr_fp64") != std::string::npos);
@@ -230,13 +249,20 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat) {
         checkpoint("4. JIT-Compiler über Wrapper beendet (compile_kernel)");
 
         // 💾 DER KORREKTE BINÄR-EXPORT (Greift tief in das Khronos-Vektor-Layout):
+        // 💾 DER PLATTFORMÜBERGREIFENDE BYTESYNCHRONE BINÄR-EXPORT
         auto bin_data = device.get_cl_program().getInfo<CL_PROGRAM_BINARIES>();
         if (!bin_data.empty() && bin_data[0].size() > 0) {
-          std::ofstream out(binary_path, std::ios::binary);
-          // 🎯 FIX: Wir schreiben den Inhalt des ERSTEN inneren Vektors & dessen echte Byte-Länge!
-          out.write((char*)bin_data[0].data(), bin_data[0].size());
-          out.close();
-          std::cout << "💾 OpenCL-Binary erfolgreich exportiert: " << binary_path << " (" << bin_data[0].size() << " Bytes)" << std::endl << std::flush;
+            std::ofstream out(binary_path, std::ios::binary | std::ios::out);
+            
+            // 🎯 Vektor-Index [0] holt den inneren Byte-Vektor der CPU.
+            // .data() liefert den unsigned char* Pointer.
+            // Das Casting auf (const char*) ist rein fuer den Funktionskopf von write(), 
+            // da der Stream im Binärmodus geöffnet ist, bleiben die Bytes zu 100% unverändert!
+            out.write(reinterpret_cast<const char*>(bin_data[0].data()), bin_data[0].size());
+            out.close();
+            
+            std::cout << "💾 OpenCL-Binary erfolgreich exportiert: " << binary_path 
+                      << " (" << bin_data[0].size() << " Bytes) nach " << binary_path << std::endl << std::flush;
         }
     }
     

@@ -533,6 +533,8 @@ public:
 
   }
   inline void compile_kernel(std::string opt = "", bool force_recompile = false){
+    auto t_start = std::chrono::high_resolution_clock::now();
+
     if (!force_recompile && this->kernel_compiled) {
       print_info("skipping compile step");
       return;
@@ -563,6 +565,11 @@ public:
     this->cl_program = cl::Program(info.cl_context, cl_source);
     // const string build_options = opt+" -cl-std=CL"+info.opencl_c_version+" -cl-finite-math-only -cl-no-signed-zeros -cl-mad-enable"+(info.patch_intel_gpu_above_4gb ? " -cl-intel-greater-than-4GB-buffer-required" : "");
 
+
+    auto t_prog = std::chrono::high_resolution_clock::now();
+    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 1. cl::Program aus Source erzeugt | Zeit: " 
+              << std::chrono::duration<double>(t_prog - t_start).count() << "s" << std::endl << std::flush;
+    
     // 1. Erzeugen Sie die Standard-Optionen
     string build_options = opt + " -cl-std=CL" + info.opencl_c_version;
 
@@ -582,12 +589,14 @@ public:
 #endif
 
     int error = 0;
+    auto t_build_start = std::chrono::high_resolution_clock::now();
 
 #ifdef _WIN32
     // 🚀 DER DEFINITIVE WINDOWS-RTERM-RETTER (Isolierter Detach-Tunnel)
     // Wir lagern den Build und die anschließende Treiber-Finalisierung 
     // in einen komplett losgelösten System-Thread aus, den Rterm nicht sperren kann!
     
+    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 2. Starte asynchrones cl_program.build()..." << std::endl << std::flush;
 
     bool build_finished = false;
 
@@ -605,9 +614,14 @@ public:
     }
 #else
     // Linux und macOS kompilieren wie gewohnt nativ und ohne Zusatz-Overhead
+    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 2. Starte natives cl_program.build()..." << std::endl << std::flush;
     error = cl_program.build({ this->info.cl_device }, final_options.c_str());
 #endif
 
+    auto t_build_end = std::chrono::high_resolution_clock::now();
+    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 3. cl_program.build() beendet | Code: " << error 
+              << " | Reine Build-Zeit: " << std::chrono::duration<double>(t_build_end - t_build_start).count() << "s" << std::endl << std::flush;
+    
     // 💥 FEHLER 3 UMANGEN: getBuildInfo blockiert Streams live unter Windows, 
     // daher holen wir das Log NUR noch im echten Absturzfall ab!
     if(error) {
@@ -646,10 +660,22 @@ public:
     file.read((char*)buffer.data(), size);
     file.close();
 
+    // 🔬 MATHEMATISCHER PRÜFSUMMEN-CHECK (Einfache, extrem schnelle Byte-Summe)
+    unsigned long long byte_sum = 0;
+    for (unsigned char b : buffer) {
+        byte_sum += b;
+    }
+    
     auto t1 = std::chrono::high_resolution_clock::now();
-    std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 1. Datei eingelesen (" << size << " Bytes) | Zeit: " 
-              << std::chrono::duration<double>(t1 - t0).count() << "s" << std::endl << std::flush;
 
+    // 🔬 DIAGNOSTISCHER HARDWARE-HANDLE-CHECK
+    std::cout << "🔍 [DEBUG-STATE] Vor cl::Program:\n"
+              << "   -> Raw Context Handle: " << std::hex << (void*)(info.cl_context()) << "\n"
+              << "   -> Raw Device ID:      " << (void*)(info.cl_device()) << "\n"
+              << "   -> Mathematischer Byte-Hash: " << byte_sum << std::dec << " (" << size << " Bytes)\n"
+              << "⏱️ [BIN-LOAD-SUBPROFILE] Zeit fuer I/O: " << std::chrono::duration<double>(t1 - t0).count() << "s" << std::endl << std::flush;
+
+    
     // 2. Khronos-Vektoren vorbereiten
     cl::Program::Binaries binaries = { buffer };
     cl::vector<cl::Device> devices_vec = { this->info.cl_device };
