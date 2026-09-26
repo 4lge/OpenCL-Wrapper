@@ -14,13 +14,22 @@
 
 // [[Rcpp::plugins(cpp20)]]
 // [[Rcpp::depends(Rcpp)]]
-// [[Rcpp::eval(options = list(PKG_CPPFLAGS = "-I./src/OpenCL/include -I.", PKG_LIBS = "-LC:/Windows/System32 -lOpenCL"))]]
 
 #define CL_HPP_ENABLE_EXCEPTIONS
-#define CL_TARGET_OPENCL_VERSION 300
-#define CL_HPP_TARGET_OPENCL_VERSION 300
-#define CL_HPP_MINIMUM_OPENCL_VERSION 100
-
+// =========================================================================
+// 🍏 MACOS OPENCL 1.2 ABWÄRTSKOMPATIBILITÄT:
+// Apple friert OpenCL bei Version 1.2 ein. Wir zwingen das Khronos-Header,
+// alle 2.0+ Features (SVM, Pipes, On-Device Queues) wegzulassen.
+// =========================================================================
+#ifdef __APPLE__
+  #define CL_TARGET_OPENCL_VERSION 120
+  #define CL_HPP_TARGET_OPENCL_VERSION 120
+  #define CL_HPP_MINIMUM_OPENCL_VERSION 120
+#else
+  #define CL_TARGET_OPENCL_VERSION 300
+  #define CL_HPP_TARGET_OPENCL_VERSION 300
+  #define CL_HPP_MINIMUM_OPENCL_VERSION 100
+#endif
 
 std::string CLGetHardwareCachePath();
 
