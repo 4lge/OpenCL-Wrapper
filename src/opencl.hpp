@@ -632,7 +632,7 @@
 	      if((uint)log.length() > 2u) print_warning(log);
 	#endif
 	      //std::string detailed_error = clerror::get_error_full((int)error);
-	      throw std::runtime_error("OpenCL Fatal Exception -> " + error);
+	      throw std::runtime_error("OpenCL Fatal Exception -> ");
 	    } else {
 	      print_info("OpenCL C code successfully compiled.");
 	      this->kernel_compiled = true;
