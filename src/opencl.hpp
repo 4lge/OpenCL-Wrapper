@@ -428,9 +428,9 @@
 
     // 🎯 FIX: Wir initialisieren die C++ Wrapper-Objekte über die korrekten Khronos-C-Konstruktoren,
     // damit alle internen Treiber-Metadaten auf Windows und Linux voll zur Verfügung stehen!
-    this->info.cl_context = cl::Context(ext_context, true); 
-    this->info.cl_device  = cl::Device(ext_device, true); 
-    
+    this->info.cl_context = ext_context;
+    this->info.cl_device  = ext_device;
+
     this->info.opencl_c_version = "3.0";
     this->info.patch_intel_gpu_above_4gb = false;
     this->info.name = "OpenCLeaR Shared Accelerator";
@@ -734,14 +734,19 @@
     this->kernel_compiled = true;
   }
       // 💾 NATIVE BACKEND-METHODE FÜR DEN BYTESYNCHRONEN ELF/PTX-EXPORT
-      inline void export_compiled_binary(const std::string& binary_path) {
-        try {
+        // 💾 NATIVE, UNZERSTÖRBARE BACKEND-METHODE FÜR DEN BINÄR-EXPORT
+  inline void export_compiled_binary(const std::string& binary_path) {
+      try {
+          // 🛡️ REPARATUR-WACHMACHER 1 FÜR WINDOWS: Pipe öffnen vor dem Treiber-Call
           std::cout << "💾 [EXPORT] Starte treibersicheren ELF-Export..." << std::endl << std::flush;
-          // 1. Absolute C-API Sicherheit: Bytegröße direkt als nackte size_t abfragen (Umgeht den Intel-Vektor-Crash!)
+
           size_t real_size = 0;
           cl_int err = clGetProgramInfo(this->cl_program(), CL_PROGRAM_BINARY_SIZES, 
                                         sizeof(size_t), &real_size, NULL);
           
+          // 🛡️ REPARATUR-WACHMACHER 2 FÜR WINDOWS: Signal direkt nach der Größen-Ermittlung
+          std::cout << "💾 [EXPORT] Groesse ermittelt: " << real_size << " Bytes. Allokiere Buffer..." << std::endl << std::flush;
+
           if (err != CL_SUCCESS || real_size == 0) {
               std::cerr << "⚠️ Warnung: Keine gueltigen Binaergroessen vom Treiber gemeldet! Code: " << err << std::endl;
               return;
@@ -750,11 +755,15 @@
           std::vector<unsigned char> raw_buffer(real_size);
           std::vector<unsigned char*> binaries_pointers = { raw_buffer.data() };
 
+          // 🛡️ REPARATUR-WACHMACHER 3 FÜR WINDOWS: Pipe unmittelbar vor dem Datenabruf wachhalten
+          std::cout << "💾 [EXPORT] Rufe Maschinencode von Hardware ab..." << std::endl << std::flush;
+
           err = clGetProgramInfo(this->cl_program(), CL_PROGRAM_BINARIES, 
-                                        sizeof(unsigned char*) * binaries_pointers.size(), 
-                                        binaries_pointers.data(), NULL);
+                                 sizeof(unsigned char*) * binaries_pointers.size(), 
+                                 binaries_pointers.data(), NULL);
           
-          std::cout << "💾 [EXPORT] Treiber-Buffer ausgelesen (" << real_size << " Bytes). Schreibe Datei..." << std::endl << std::flush;
+          // 🛡️ REPARATUR-WACHMACHER 4 FÜR WINDOWS: Weckt die Rterm-Pipe unmittelbar vor dem Dateischreiben auf!
+          std::cout << "💾 [EXPORT] Treiber-Buffer erfolgreich ausgelesen. Schreibe Datei..." << std::endl << std::flush;
 
           if (err == CL_SUCCESS) {
               std::ofstream out(binary_path, std::ios::binary | std::ios::out);
@@ -771,6 +780,54 @@
           std::cerr << "💥 Exception im export_compiled_binary: " << e.what() << std::endl;
       }
   }
+        inline void load_or_build_kernel(int platform_idx, int device_idx) {
+      // 1. Hole den berechneten Cache-Pfad ab
+      std::string binary_path = this->get_binary_cache_path();
+      if (binary_path.empty()) {
+          throw std::runtime_error("💥 Fehler: Cache-Pfad konnte im Backend nicht ermittelt werden!");
+      }
+
+      // 2. Prüfe auf der Festplatte, ob das vorkompilierte Binary existiert
+      std::ifstream check_file(binary_path, std::ios::binary);
+      bool binary_exists = check_file.good();
+      check_file.close();
+
+      if (binary_exists) {
+          // 🚀 WARMSTART-PFAD: Lädt direkt blitzschnell (< 2ms)
+          std::cout << "⏱️ [BACKEND] Vorkompiliertes Binary gefunden. Überspringe JIT..." << std::endl << std::flush;
+          this->load_compiled_binary(binary_path);
+      } else {
+          // 🛠️ KALTSTART-PFAD: CLI-Compiler prozess-isoliert anwerfen gegen den Windows-Lock
+          std::cout << "⏱️ [BACKEND] Binary fehlt. Starte Standalone-Prozess-Kompilierung..." << std::endl << std::flush;
+
+          // OS-Weiche für den Namen des Compilers im aktuellen Verzeichnis
+          std::string compiler_exe = "./ocl_compiler";
+#ifdef _WIN32
+          compiler_exe = "ocl_compiler.exe";
+#endif
+
+          // Dynamischen CLI-Befehl zusammensetzen
+          std::string compiler_cmd = compiler_exe + 
+                                     " -i " + this->get_kernel_path() + 
+                                     " -o " + binary_path + 
+                                     " -p " + std::to_string(platform_idx) + 
+                                     " -d " + std::to_string(device_idx);
+
+          std::cout << "🔄 [BACKEND-EXEC] " << compiler_cmd << std::endl << std::flush;
+
+          // Befehl im Betriebssystem ausführen (Vollkommen isoliert von Rterm)
+          int status = std::system(compiler_cmd.c_str());
+
+          if (status != 0) {
+              throw std::runtime_error("💥 Fehler: Der Standalone CLI-Compiler-Prozess lieferte einen Fehler-Code (" + std::to_string(status) + ") oder wurde nicht gefunden!");
+          }
+
+          // ⚡ Sofortiges Einlesen des frisch generierten 8036-Byte-Files
+          std::cout << "💾 [BACKEND] Binary erfolgreich erzeugt. Lade Code..." << std::endl << std::flush;
+          this->load_compiled_binary(binary_path);
+      }
+  }
+
 };
 
 template<typename T> class Memory {

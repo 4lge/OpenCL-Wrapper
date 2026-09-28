@@ -12,7 +12,7 @@
 #include <cctype>
 #include <thread>
 
-// 🎯 SCHALTET DIE KHRONOS-EXCEPTIONS FREI
+// 🎯 SCHALTET DIE KHRONOS-EXCEPTIONS RECHTSKONFORM FREI
 #ifndef CL_HPP_ENABLE_EXCEPTIONS
   #define CL_HPP_ENABLE_EXCEPTIONS
 #endif
@@ -44,24 +44,30 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat, int platform_idx 
   get_opencl_print_enabled() = (std::getenv("R_OPENCL_PRINT_ENABLED") != nullptr);
   cl_int err = 0;
 
-  // 🛡️ DYNAMISCHE HARDWARE-BARRIERE FÜR WINDOWS & UNIX
-  static std::vector<int> cached_p_indices;
-  static std::vector<int> cached_d_indices;
-  static std::vector<cl::Platform*> cached_platforms;
-  static std::vector<cl::Device*> cached_devices;
+  // 🚀 HARDWARE-AUFLÖSUNG DIREKT ÜBER DIE INTERNEN KOORDINATEN
+  std::vector<cl::Platform> platforms;
+  cl::Platform::get(&platforms);
+  if (platform_idx >= (int)platforms.size()) stop("💥 Fehler: Ungueltiger OpenCL Plattform-Index!");
+  cl::Platform platform = platforms[platform_idx];
+
+  std::vector<cl::Device> devices;
+  platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
+  if (device_idx >= (int)devices.size()) stop("💥 Fehler: Ungueltiger OpenCL Device-Index!");
+  cl::Device dev = devices[device_idx];
+
+  // 🛡️ DIE ASYMMETRISCHE SPEICHER-WEICHE (Rettet Windows & Linux gleichzeitig!)
+#ifndef _WIN32
+  // 🐧 LINUX / MACOS: Brauchen zwingend statisch langlebige Vektor-Pointer gegen den Segfault!
   static std::vector<cl::Context*> cached_contexts;
   static std::vector<cl::CommandQueue*> cached_queues;
+  static std::vector<cl_device_id> cached_device_ids;
 
-  cl::Platform* active_platform = nullptr;
-  cl::Device* active_device = nullptr;
   cl::Context* active_context = nullptr;
   cl::CommandQueue* active_queue = nullptr;
   bool found_cached = false;
 
-  for (size_t i = 0; i < cached_p_indices.size(); ++i) {
-      if (cached_p_indices[i] == platform_idx && cached_d_indices[i] == device_idx) {
-          active_platform = cached_platforms[i];
-          active_device = cached_devices[i];
+  for (size_t i = 0; i < cached_device_ids.size(); ++i) {
+      if (cached_device_ids[i] == dev()) {
           active_context = cached_contexts[i];
           active_queue = cached_queues[i];
           found_cached = true;
@@ -70,49 +76,41 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat, int platform_idx 
   }
 
   if (!found_cached) {
-      std::vector<cl::Platform> platforms;
-      cl::Platform::get(&platforms);
-      if (platform_idx >= (int)platforms.size()) stop("💥 Fehler: Ungueltiger OpenCL Plattform-Index!");
-      cl::Platform platform = platforms[platform_idx];
-
-      std::vector<cl::Device> devices;
-      platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
-      if (device_idx >= (int)devices.size()) stop("💥 Fehler: Ungueltiger OpenCL Device-Index!");
-      cl::Device dev = devices[device_idx];
-
-      Rcout << "Initializing hardware link -> Selected device: " << dev.getInfo<CL_DEVICE_NAME>()
-            << " on platform: " << platform.getInfo<CL_PLATFORM_NAME>() << "\n";
-
-      active_platform = new cl::Platform(platform);
-      active_device = new cl::Device(dev);
-      active_context = new cl::Context(*active_device);
-      active_queue = new cl::CommandQueue(*active_context, *active_device, 0, &err);
+      Rcout << "Initializing Linux/Mac static hardware link -> " << dev.getInfo<CL_DEVICE_NAME>() << "\n";
+      active_context = new cl::Context(dev);
+      active_queue = new cl::CommandQueue(*active_context, dev, 0, &err);
       
-      cached_p_indices.push_back(platform_idx);
-      cached_d_indices.push_back(device_idx);
-      cached_platforms.push_back(active_platform);
-      cached_devices.push_back(active_device);
+      cached_device_ids.push_back(dev());
       cached_contexts.push_back(active_context);
       cached_queues.push_back(active_queue);
   }
+#else
+  // 🪟 WINDOWS: Erzeugt bei JEDEM Aufruf einen unbefleckten Kontext. Das hebelt den Intel-Cache-Lock aus!
+  cl::Context current_context(dev);
+  cl::CommandQueue current_queue(current_context, dev, 0, &err);
+#endif
 
-  // 🎯 INITIALISIERUNG DES WRAPPERS
-  Device device((*active_context)(), (*active_device)(), (*active_queue)());
+  // 🎯 INSTANZIIRUNG DES WRAPPERS MIT DEN PLATTFORMSPEZIFISCHEN HANDLES
+#ifdef _WIN32
+  Device device(current_context(), dev(), current_queue());
+#else
+  Device device((*active_context)(), dev(), (*active_queue)());
+#endif
+
+  
+  // 🎯 DAS NEUE GEKAPSELTE INITIALISIERUNGS-MUSTER:
+  // Setzt die Quelldatei, berechnet die Ordner und regelt den Kalt-/Warmstart vollkommen autonom!
   device.set_kernel_path("distance_matrix.cl");
   device.initialize_binary_cache_path(platform_idx, device_idx);
   
+  // Ordnerstruktur für den Cache anlegen (Muss vor dem Compiler-Lauf existieren)
   std::string binary_path = device.get_binary_cache_path();
-  if (binary_path.empty()) {
-      stop("💥 Fehler: OpenCL-Hardwarepfad konnte in C++ nicht ermittelt werden!");
-  }
-
   std::string target_dir = binary_path.substr(0, binary_path.find_last_of("/\\"));
   Rcpp::Function r_dir_create("dir.create");
   r_dir_create(target_dir, Rcpp::Named("recursive", true), Rcpp::Named("showWarnings", false));
 
-  std::ifstream check_file(binary_path, std::ios::binary);
-  bool binary_exists = check_file.good();
-  check_file.close();
+  // 🚀 EIN EINZIGER BEFEHL: Erledigt alles im Backend sychron und prozess-isoliert!
+  device.load_or_build_kernel(platform_idx, device_idx);
 
   int rows = mat.nrow();
   int cols = mat.ncol();
@@ -136,44 +134,17 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat, int platform_idx 
     std::cout << "\n================ START DIRECT DLL INTERFACE PROFILE ================" << std::endl << std::flush;
     checkpoint("0. Start");
 
-    std::string extensions = active_device->getInfo<CL_DEVICE_EXTENSIONS>();
+    // 🚀 HARDWARE-EIGENSCHAFTEN AUSLESEN: Wichtig für die folgende Datenpfad-Weiche (Float vs Double)
+    std::string extensions = dev.getInfo<CL_DEVICE_EXTENSIONS>();
     device.info.is_fp64_capable = (extensions.find("cl_khr_fp64") != std::string::npos);
+    checkpoint("1. Hardware-Faehigkeiten verifiziert");
 
-    std::string prolog = "";
-    if (!device.info.is_fp64_capable) {
-        prolog = "#define real_t float\n#define real2_t float2\n";
-    } else {
-        prolog = "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n#define real_t double\n#define real2_t double2\n";
-    }
-    checkpoint("1. Wrapper Device-Objekt standalone initialisiert");
+    // 🎯 DER NEUE REINE WRAPPER-DURCHREICHER:
+    // Der gesamte JIT-Compile-Zweig, das Einlesen der .cl-Datei und das Exportieren
+    // sind vollständig in diese eine Methode gewandert!
+    device.load_or_build_kernel(platform_idx, device_idx);
+    checkpoint("2. OpenCL-Programm erfolgreich geladen (JIT übersprungen oder über CLI-Compiler erzeugt)");
 
-    if (binary_exists) {
-        device.load_compiled_binary(binary_path);
-        checkpoint("4. Vorkompiliertes Binary direkt geladen (JIT übersprungen)");
-    } else {
-        std::ifstream core_file(device.get_kernel_path());
-        if (!core_file.good()) {
-            stop("💥 Fehler: Die Kernel-Datei '" + device.get_kernel_path() + "' wurde nicht gefunden!");
-        }
-        std::stringstream buffer;
-        buffer << core_file.rdbuf();
-        std::string core_kernel = buffer.str();
-        core_file.close();
-
-        std::string final_kernel_code = prolog + "\n" + core_kernel;
-        device.set_kernel_source(final_kernel_code);
-        checkpoint("3. Kernel-String an device übergeben");
-
-        std::string compile_flags = "-cl-opt-disable";
-        
-        // 🚀 SYNCHRONER AUFRUF: Durchbricht das Warten am Funktionsende
-        device.compile_kernel(compile_flags, false);
-        checkpoint("4. JIT-Compiler über Wrapper beendet (compile_kernel)");
-
-        // 💾 EXPORT: Schreibt das verifizierte ELF-Binary
-        device.export_compiled_binary(binary_path);
-    }
-    
     int input_size = rows * cols;
     int output_size = rows * rows;
     ulong total_threads = (ulong)rows * (ulong)rows;

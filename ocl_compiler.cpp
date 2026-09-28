@@ -93,25 +93,30 @@ int main(int argc, char* argv[]) {
         // 4. JIT-Kompilierung ohne riskantere Math-Flags ausführen
         physx_device.compile_kernel("-cl-opt-disable", false);
 
-        // 5. 🚀 ABSOLUT BYTESYNCHRONER BINÄR-EXPORT (Sichert den ELF-Header auf Windows)
+                // 5. 🚀 ABSOLUT BYTESYNCHRONER BINÄR-EXPORT
         auto bin_data = physx_device.get_cl_program().getInfo<CL_PROGRAM_BINARIES>();
         if (!bin_data.empty() && bin_data[0].size() > 0) {
             std::ofstream out(output_path, std::ios::binary | std::ios::out);
             
             // Greift gezielt auf das Byte-Array des primären Geräts zu [0]
-            // reinterpret_cast verhindert implizite signed/unsigned-Vorzeichenfehler von Windows-Streams
             out.write(reinterpret_cast<const char*>(bin_data[0].data()), bin_data[0].size());
             out.close();
             
-            std::cout << "SUCCESS" << std::endl;
+            std::cout << "SUCCESS" << std::endl << std::flush;
+            
+            // 🎯 DER DEFINITIVE SCHALTDÄMPFER FÜR UNIX & WINDOWS:
+            // std::_Exit(0) beendet den CLI-Prozess augenblicklich und sauber.
+            // Es überspringt die zerstörerische Destruktor-Kette im NVIDIA/Intel-Treiber,
+            // liefert an R den perfekten Rückgabetyp 0 und verhindert den Segfault komplett!
+            std::_Exit(0);
         } else {
             std::cerr << "Fehler: Keine gueltigen OpenCL-Binaries vom Treiber zurueckgegeben.\n";
-            return 1;
+            std::_Exit(1);
         }
     }
     catch (cl::Error &err) {
         std::cerr << "OpenCL CLI-Compiler Fehler: " << err.what() << " (" << err.err() << ")\n";
-        return 1;
+        std::_Exit(1);
     }
     return 0;
 }
