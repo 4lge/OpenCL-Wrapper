@@ -1,0 +1,6 @@
+#!/bin/sh
+if [ "$(uname)" == "Darwin" ]; then
+  ./ocl_compiler.mac $*
+elif [ "$(uname)" == "Linux" ]; then
+  ./ocl_compiler.linux $*
+fi
