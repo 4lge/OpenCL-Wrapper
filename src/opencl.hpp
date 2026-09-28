@@ -623,16 +623,16 @@
 
       //
 
-  void initialize_binary_cache_path(int platform_idx, int device_idx) {
+  void initialize_binary_cache_path() {
       std::vector<cl::Platform> platforms;
       cl::Platform::get(&platforms);
-      if (platform_idx >= (int)platforms.size()) return;
-      cl::Platform platform = platforms[platform_idx];
+      if (this->platform_idx >= (int)platforms.size()) return;
+      cl::Platform platform = platforms[this->platform_idx];
 
       std::vector<cl::Device> devices;
       platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
-      if (device_idx >= (int)devices.size()) return;
-      cl::Device dev = devices[device_idx];
+      if (this->device_idx >= (int)devices.size()) return;
+      cl::Device dev = devices[this->device_idx];
 
       std::string os_label = "unknown";
       std::string arch_label = "x86_64";
