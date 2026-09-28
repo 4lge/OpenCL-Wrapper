@@ -781,49 +781,45 @@
       }
   }
         inline void load_or_build_kernel(int platform_idx, int device_idx) {
-      // 1. Hole den berechneten Cache-Pfad ab
       std::string binary_path = this->get_binary_cache_path();
       if (binary_path.empty()) {
           throw std::runtime_error("💥 Fehler: Cache-Pfad konnte im Backend nicht ermittelt werden!");
       }
 
-      // 2. Prüfe auf der Festplatte, ob das vorkompilierte Binary existiert
       std::ifstream check_file(binary_path, std::ios::binary);
       bool binary_exists = check_file.good();
       check_file.close();
 
       if (binary_exists) {
-          // 🚀 WARMSTART-PFAD: Lädt direkt blitzschnell (< 2ms)
           std::cout << "⏱️ [BACKEND] Vorkompiliertes Binary gefunden. Überspringe JIT..." << std::endl << std::flush;
           this->load_compiled_binary(binary_path);
       } else {
-          // 🛠️ KALTSTART-PFAD: CLI-Compiler prozess-isoliert anwerfen gegen den Windows-Lock
-          std::cout << "⏱️ [BACKEND] Binary fehlt. Starte Standalone-Prozess-Kompilierung..." << std::endl << std::flush;
+          std::cout << "⏱️ [BACKEND] Binary fehlt. Bereite Verzeichnis vor und starte Kompilierung..." << std::endl << std::flush;
 
-          // OS-Weiche für den Namen des Compilers im aktuellen Verzeichnis
+          // 🎯 AUTONOME ORDNER-ERSTELLUNG DIREKT IM BACKEND:
+          // Extrahiert das reine Verzeichnis aus dem binären Cache-Pfad und legt es rekursiv an
+          std::string target_dir = binary_path.substr(0, binary_path.find_last_of("/\\"));
+          
+          native_mkdir_recursive(target_dir);
+   
           std::string compiler_exe = "./ocl_compiler";
 #ifdef _WIN32
           compiler_exe = "ocl_compiler.exe";
 #endif
 
-          // Dynamischen CLI-Befehl zusammensetzen
-          // 🎯 Der aufgeräumte, redundanzfreie Systembefehl:
           std::string compiler_cmd = compiler_exe + 
                                      " -i " + this->get_kernel_path() + 
                                      " -c ./.cl_cache" + 
                                      " -p " + std::to_string(platform_idx) + 
                                      " -d " + std::to_string(device_idx);
-          
+
           std::cout << "🔄 [BACKEND-EXEC] " << compiler_cmd << std::endl << std::flush;
 
-          // Befehl im Betriebssystem ausführen (Vollkommen isoliert von Rterm)
           int status = std::system(compiler_cmd.c_str());
-
           if (status != 0) {
-              throw std::runtime_error("💥 Fehler: Der Standalone CLI-Compiler-Prozess lieferte einen Fehler-Code (" + std::to_string(status) + ") oder wurde nicht gefunden!");
+              throw std::runtime_error("💥 Fehler: Der Standalone CLI-Compiler-Prozess lieferte einen Fehler-Code (" + std::to_string(status) + ")!");
           }
 
-          // ⚡ Sofortiges Einlesen des frisch generierten 8036-Byte-Files
           std::cout << "💾 [BACKEND] Binary erfolgreich erzeugt. Lade Code..." << std::endl << std::flush;
           this->load_compiled_binary(binary_path);
       }
@@ -1173,19 +1169,39 @@ public:
     cl_queue = device.get_cl_queue();
   }
   inline Kernel() {} // default constructor
+  
+
   inline Kernel& set_ranges(const ulong N, const ulong workgroup_size=(ulong)WORKGROUP_SIZE) {
     this->N = N;
-    cl_range_global = cl::NDRange(((N+workgroup_size-1ull)/workgroup_size)*workgroup_size); // make global range a multiple of local range
-    cl_range_local = cl::NDRange(workgroup_size);
+    
+    // 🎯 FINALE MAC- & KLEINMATRIX-RETTUNG
+    // Wenn das Grid kleiner als die Workgroup ist, überlassen wir der Hardware die Aufteilung (cl::NullRange)
+    if (N < workgroup_size) {
+        cl_range_global = cl::NDRange(N); // Exakte Thread-Anzahl ohne Aufrunden
+        cl_range_local = cl::NullRange;   // Hardware entscheidet selbst
+    } else {
+        cl_range_global = cl::NDRange(((N + workgroup_size - 1ull) / workgroup_size) * workgroup_size);
+        cl_range_local = cl::NDRange(workgroup_size);
+    }
     return *this;
   }
+
   inline Kernel& set_ranges_2d(const ulong N, const ulong M, const ulong workgroup_size=(ulong)WORKGROUP_SIZE) {
     this->N = N;
     this->M = M;
-    cl_range_global = cl::NDRange(((N+workgroup_size-1ull)/workgroup_size)*workgroup_size,((M+workgroup_size-1ull)/workgroup_size)*workgroup_size); // make global ranges a multiple of local range
-    cl_range_local = cl::NDRange(workgroup_size);
+    
+    if ((N * M) < workgroup_size) {
+        cl_range_global = cl::NDRange(N, M);
+        cl_range_local = cl::NullRange;
+    } else {
+        cl_range_global = cl::NDRange(((N + workgroup_size - 1ull) / workgroup_size) * workgroup_size,
+                                      ((M + workgroup_size - 1ull) / workgroup_size) * workgroup_size);
+        cl_range_local = cl::NDRange(workgroup_size);
+    }
     return *this;
   }
+  
+  
   inline const ulong range() const { return N; }
   inline uint get_number_of_parameters() const { return number_of_parameters; }
   template<class... T> inline Kernel& add_parameters(const T&... parameters) { // add parameters to the list of existing parameters
@@ -1197,8 +1213,20 @@ public:
     return *this;
   }
   inline Kernel& enqueue_run(const uint t=1u, const vector<Event>* event_waitlist=nullptr, Event* event_returned=nullptr) {
+    // 🎯 DYNAMISCHE WORKGROUP-RETTUNG FÜR ALTE MACS
+    // Wenn cl_range_local gesetzt ist, prüfen wir, ob die globalen Threads ein glattes Vielfaches sind.
+    // Falls nicht (oder falls global < lokal), zwingen wir den Treiber via cl::NullRange zur Auto-Aufteilung.
+    cl::NDRange actual_local = cl_range_local;
+    if (cl_range_local.size() > 0 && cl_range_global.size() > 0) {
+        size_t global_size = cl_range_global[0];
+        size_t local_size = cl_range_local[0];
+        if (global_size < local_size || (global_size % local_size != 0)) {
+            actual_local = cl::NullRange; // 🚀 Rettung für Mac & kleine Testmatrizen!
+        }
+    }
+
     for(uint i=0u; i<t; i++) {
-      check_for_errors(cl_queue.enqueueNDRangeKernel(cl_kernel, cl::NullRange, cl_range_global, cl_range_local, event_waitlist, event_returned));
+      check_for_errors(cl_queue.enqueueNDRangeKernel(cl_kernel, cl::NullRange, cl_range_global, actual_local, event_waitlist, event_returned));
     }
     return *this;
   }

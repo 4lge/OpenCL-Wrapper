@@ -6,6 +6,7 @@
 #include <cctype>
 #include <cstdlib>
 
+
 #ifdef __APPLE__
   #define CL_TARGET_OPENCL_VERSION 120
   #define CL_HPP_TARGET_OPENCL_VERSION 120
@@ -23,6 +24,7 @@
 #include "src/opencl.hpp"
 
 inline std::string get_opencl_c_code() { return "\n"; }
+
 
 void print_usage() {
     std::cout << "Verwendung: ocl_compiler -i <kernel.cl> -c <cache_base_dir> -p <platform_idx> -d <device_idx>\n";

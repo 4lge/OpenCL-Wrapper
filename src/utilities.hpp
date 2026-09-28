@@ -5,6 +5,14 @@ inline bool& get_opencl_print_enabled() {
     return enabled;
 }
 
+#if defined(_WIN32)
+  #include <direct.h>  // Für _mkdir unter Windows
+#else
+  #include <sys/stat.h> // Für mkdir unter Linux/macOS
+  #include <sys/types.h>
+#endif
+
+
 
 #define UTILITIES_REGEX
 #define UTILITIES_FILE
@@ -814,4 +822,34 @@ inline void write_file(const string& filename, const string& content="") {
 	file.write(content.c_str(), content.length());
 	file.close();
 }
+
+
+// 🎯 REKURSIVES ORDNER-ERSTELLEN OHNE C++17 (Kompatibel bis macOS 10.12, Linux & Windows)
+inline void native_mkdir_recursive(const std::string& path) {
+    if (path.empty()) return;
+
+    std::string current_level = "";
+    for (size_t i = 0; i < path.length(); ++i) {
+        current_level += path[i];
+        
+        // Sobald wir einen Ordner-Trenner erreichen, erstellen wir die bisherige Ebene
+        if (path[i] == '/' || path[i] == '\\') {
+            if (current_level == "./" || current_level == ".\\") continue;
+            
+#if defined(_WIN32)
+            _mkdir(current_level.c_str()); // Windows ignoriert Fehler, wenn Ordner existiert
+#else
+            mkdir(current_level.c_str(), 0777); // macOS/Linux setzen Vollzugriff (0777)
+#endif
+        }
+    }
+    
+    // Den finalen Ordner am Ende des Pfads (falls kein abschließender Slash da war) erzeugen
+#if defined(_WIN32)
+    _mkdir(path.c_str());
+#else
+    mkdir(path.c_str(), 0777);
+#endif
+}
+
 #endif // UTILITIES_FILE

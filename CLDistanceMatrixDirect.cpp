@@ -103,12 +103,6 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat, int platform_idx 
   device.set_kernel_path("distance_matrix.cl");
   device.initialize_binary_cache_path(platform_idx, device_idx);
   
-  // Ordnerstruktur für den Cache anlegen (Muss vor dem Compiler-Lauf existieren)
-  std::string binary_path = device.get_binary_cache_path();
-  std::string target_dir = binary_path.substr(0, binary_path.find_last_of("/\\"));
-  Rcpp::Function r_dir_create("dir.create");
-  r_dir_create(target_dir, Rcpp::Named("recursive", true), Rcpp::Named("showWarnings", false));
-
   // 🚀 EIN EINZIGER BEFEHL: Erledigt alles im Backend sychron und prozess-isoliert!
   device.load_or_build_kernel(platform_idx, device_idx);
 
