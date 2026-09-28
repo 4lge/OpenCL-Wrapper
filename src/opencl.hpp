@@ -807,12 +807,13 @@
 #endif
 
           // Dynamischen CLI-Befehl zusammensetzen
+          // 🎯 Der aufgeräumte, redundanzfreie Systembefehl:
           std::string compiler_cmd = compiler_exe + 
                                      " -i " + this->get_kernel_path() + 
-                                     " -o " + binary_path + 
+                                     " -c ./.cl_cache" + 
                                      " -p " + std::to_string(platform_idx) + 
                                      " -d " + std::to_string(device_idx);
-
+          
           std::cout << "🔄 [BACKEND-EXEC] " << compiler_cmd << std::endl << std::flush;
 
           // Befehl im Betriebssystem ausführen (Vollkommen isoliert von Rterm)

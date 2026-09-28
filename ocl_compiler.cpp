@@ -4,6 +4,7 @@
 #include <string>
 #include <sstream>
 #include <cctype>
+#include <cstdlib>
 
 #ifdef __APPLE__
   #define CL_TARGET_OPENCL_VERSION 120
@@ -17,42 +18,40 @@
 #ifndef CL_HPP_ENABLE_EXCEPTIONS
   #define CL_HPP_ENABLE_EXCEPTIONS
 #endif
-
+ 
 #include "src/OpenCL/include/CL/opencl.hpp"
 #include "src/opencl.hpp"
 
-// Alibi-Funktion für den Wrapper (wird in opencl.hpp benötigt)
 inline std::string get_opencl_c_code() { return "\n"; }
 
 void print_usage() {
-    std::cout << "Verwendung: ocl_compiler -i <kernel.cl> -o <output.bin> -p <platform_index> -d <device_index>\n";
+    std::cout << "Verwendung: ocl_compiler -i <kernel.cl> -c <cache_base_dir> -p <platform_idx> -d <device_idx>\n";
 }
 
 int main(int argc, char* argv[]) {
     std::string input_path = "";
-    std::string output_path = "";
+    std::string cache_base = "./.cl_cache";
     int platform_idx = 0;
     int device_idx = 0;
 
-    // 🎯 Flexibler CLI-Parser für R-Schnittstelle
+    // 🎯 Der CLI-Parser akzeptiert jetzt die Basis anstelle des Vollpfads
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if ((arg == "-i" || arg == "--input") && i + 1 < argc) input_path = argv[++i];
-        else if ((arg == "-o" || arg == "--output") && i + 1 < argc) output_path = argv[++i];
+        else if ((arg == "-c" || arg == "--cache") && i + 1 < argc) cache_base = argv[++i];
         else if ((arg == "-p" || arg == "--platform") && i + 1 < argc) platform_idx = std::stoi(argv[++i]);
         else if ((arg == "-d" || arg == "--device") && i + 1 < argc) device_idx = std::stoi(argv[++i]);
     }
 
-    if (input_path.empty() || output_path.empty()) {
+    if (input_path.empty()) {
         print_usage();
-        return 1;
+        std::_Exit(1);
     }
 
-    // 1. Beliebige Kernel-Quelldatei von Festplatte einlesen
     std::ifstream kernel_file(input_path);
     if (!kernel_file.good()) {
         std::cerr << "Fehler: Kernel-Datei konnte nicht geoeffnet werden: " << input_path << "\n";
-        return 1;
+        std::_Exit(1);
     }
     std::stringstream str_stream;
     str_stream << kernel_file.rdbuf();
@@ -60,20 +59,19 @@ int main(int argc, char* argv[]) {
     kernel_file.close();
 
     try {
-        // 2. OpenCL-Hardware gezielt anhand der R-Argumente ansteuern
         std::vector<cl::Platform> platforms;
         cl::Platform::get(&platforms);
         if (platform_idx >= (int)platforms.size()) {
             std::cerr << "Fehler: Plattform-Index " << platform_idx << " existiert nicht.\n";
-            return 1;
+            std::_Exit(1);
         }
         cl::Platform platform = platforms[platform_idx];
 
         std::vector<cl::Device> devices;
         platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
         if (device_idx >= (int)devices.size()) {
-            std::cerr << "Fehler: Device-Index " << device_idx << " auf Plattform " << platform_idx << " existiert nicht.\n";
-            return 1;
+            std::cerr << "Fehler: Device-Index " << device_idx << " existiert nicht.\n";
+            std::_Exit(1);
         }
         cl::Device device = devices[device_idx];
 
@@ -81,10 +79,8 @@ int main(int argc, char* argv[]) {
         cl_int err = 0;
         cl::CommandQueue queue(context, device, 0, &err);
 
-        // Instanziere den Framework-Wrapper (Windows nutzt hier 'false' zwecks Thread-Sicherheit)
         Device physx_device(context(), device(), queue());
 
-        // 3. Hardware-Power ermitteln und Typdefinitionen dynamisch davorheften
         std::string extensions = device.getInfo<CL_DEVICE_EXTENSIONS>();
         bool is_fp64 = (extensions.find("cl_khr_fp64") != std::string::npos);
         
@@ -98,24 +94,53 @@ int main(int argc, char* argv[]) {
         std::string final_kernel_code = prolog + "\n" + core_kernel;
         physx_device.set_kernel_source(final_kernel_code);
         
-        // 4. JIT-Kompilierung ohne riskantere Math-Flags ausführen
         physx_device.compile_kernel("-cl-opt-disable", false);
 
-                // 5. 🚀 ABSOLUT BYTESYNCHRONER BINÄR-EXPORT
+        // 🎯 LOGISCHE RESTRUKTURIERUNG DES OUTPUTS:
+        // Der Compiler baut sich seinen Zielpfad jetzt vollkommen autonom zusammen!
+        std::string os_label = "unknown";
+        std::string arch_label = "x86_64";
+    #if defined(__x86_64__) || defined(_M_X64)
+        arch_label = "x86_64";
+    #elif defined(__aarch64__) || defined(_M_ARM64)
+        arch_label = "arm64";
+    #endif
+
+    #if defined(_WIN32)
+        os_label = "windows_" + arch_label;
+    #elif defined(__APPLE__)
+        os_label = "macos_" + arch_label;
+    #elif defined(__linux__)
+        os_label = "linux_" + arch_label;
+    #endif
+
+        auto clean_str = [](std::string s) {
+            std::string res = "";
+            for (char c : s) {
+                if (std::isalnum(c)) res += std::tolower(c);
+                else if (c == ' ' || c == '-' || c == '_') res += '_';
+            }
+            return res;
+        };
+
+        size_t last_slash = input_path.find_last_of("/\\");
+        std::string raw_file = (last_slash == std::string::npos) ? input_path : input_path.substr(last_slash + 1);
+        std::string filename = raw_file.substr(0, raw_file.find_last_of("."));
+
+        // Hier entsteht der exakt identische Pfad wie in Rcpp
+        std::string output_path = cache_base + "/" + os_label + "/" + 
+                                  clean_str(platform.getInfo<CL_PLATFORM_NAME>()) + "/" + 
+                                  clean_str(device.getInfo<CL_DEVICE_NAME>()) + "/" + 
+                                  filename + ".bin";
+
         auto bin_data = physx_device.get_cl_program().getInfo<CL_PROGRAM_BINARIES>();
-        if (!bin_data.empty() && bin_data[0].size() > 0) {
+        if (!bin_data.empty() && bin_data.size() > 0) {
             std::ofstream out(output_path, std::ios::binary | std::ios::out);
-            
             // Greift gezielt auf das Byte-Array des primären Geräts zu [0]
             out.write(reinterpret_cast<const char*>(bin_data[0].data()), bin_data[0].size());
             out.close();
             
             std::cout << "SUCCESS" << std::endl << std::flush;
-            
-            // 🎯 DER DEFINITIVE SCHALTDÄMPFER FÜR UNIX & WINDOWS:
-            // std::_Exit(0) beendet den CLI-Prozess augenblicklich und sauber.
-            // Es überspringt die zerstörerische Destruktor-Kette im NVIDIA/Intel-Treiber,
-            // liefert an R den perfekten Rückgabetyp 0 und verhindert den Segfault komplett!
             std::_Exit(0);
         } else {
             std::cerr << "Fehler: Keine gueltigen OpenCL-Binaries vom Treiber zurueckgegeben.\n";
