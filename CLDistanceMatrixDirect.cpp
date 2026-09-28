@@ -43,88 +43,62 @@ inline std::string get_opencl_c_code() {
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat) {
+NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat, int platform_idx = 0, int device_idx = 0) {
+
   get_opencl_print_enabled() = (std::getenv("R_OPENCL_PRINT_ENABLED") != nullptr);
 
   cl_int err = 0;
 
-  // 🚀 DIE DYNAMISCHE SINGLETON-RETTUNG FÜR STANDALONE RUNS:
-  // Durch das Schlüsselwort static überleben diese Hardware-Handles im RAM der R-Sitzung.
-  // Das verhindert den doppelten Aufruf von clReleaseContext am Funktionsende vollständig!
-  static cl::Platform* best_platform = nullptr;
-  static cl::Device* best_device = nullptr;
-  // 🚀 Statische Pointer für Linux/Mac (Müssen dort langlebig sein)
+  // 🚀 ZUSTANDSLOSE HARDWARE-AUFLÖSUNG DIREKT ÜBER DIE R-ARGUMENTE
+  std::vector<cl::Platform> platforms;
+  cl::Platform::get(&platforms);
+  if (platform_idx >= (int)platforms.size()) stop("💥 Fehler: Ungueltiger OpenCL Plattform-Index!");
+  cl::Platform platform = platforms[platform_idx];
+
+  std::vector<cl::Device> devices;
+  platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
+  if (device_idx >= (int)devices.size()) stop("💥 Fehler: Ungueltiger OpenCL Device-Index!");
+  cl::Device dev = devices[device_idx];
+
+  Rcout << "Selected device: " << dev.getInfo<CL_DEVICE_NAME>()
+        << " on platform: " << platform.getInfo<CL_PLATFORM_NAME>() << "\n";
+
+  // 🚀 LINUX/MAC SCHUTZ-RETTUNG: Wir cachen Context/Queue pro physischem Device-Handle auf dem Heap
+
 #ifndef _WIN32
-  static cl::Context* best_context = nullptr;
-  static cl::CommandQueue* best_queue = nullptr;
-#endif
+  static std::vector<cl::Context*> active_contexts;
+  static std::vector<cl::CommandQueue*> active_queues;
+  static std::vector<cl_device_id> active_device_ids;
 
-  static bool hardware_initialized = false;
-  if (!hardware_initialized) {
-    std::vector<cl::Platform> platforms;
-    cl_int platform_err = cl::Platform::get(&platforms);
+  cl::Context* cached_context = nullptr;
+  cl::CommandQueue* cached_queue = nullptr;
+  bool found_cached = false;
 
-    if (platform_err == -1001 || platform_err != CL_SUCCESS || platforms.empty()) {
-      stop("*** IMPORTANT: No OpenCL platforms were found! Entering Fallback Mode. ***");
-    }
-
-    bool found = false;
-    for (const auto& platform : platforms) {
-      std::vector<cl::Device> devices;
-      try {
-        if (platform.getDevices(CL_DEVICE_TYPE_ALL, &devices) != CL_SUCCESS || devices.empty()) {
-          continue;
-        }
-      } catch (const cl::Error &) {
-        continue; 
+  for (size_t i = 0; i < active_device_ids.size(); ++i) {
+      if (active_device_ids[i] == dev()) {
+          cached_context = active_contexts[i];
+          cached_queue = active_queues[i];
+          found_cached = true;
+          break;
       }
-
-      for (const auto& dev : devices) {
-        cl_device_type type = dev.getInfo<CL_DEVICE_TYPE>();
-        cl_uint compute_units = dev.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
-
-        // 🎯 Saubere found-Logik für Pointer:
-        if (!found || 
-            (type == CL_DEVICE_TYPE_GPU && best_device->getInfo<CL_DEVICE_TYPE>() != CL_DEVICE_TYPE_GPU) ||
-            (type == best_device->getInfo<CL_DEVICE_TYPE>() && compute_units > best_device->getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>())) {
-          
-          // Alte Heap-Objekte löschen, falls schon welche existierten
-          if (best_device) delete best_device;
-          if (best_platform) delete best_platform;
-
-          best_device = new cl::Device(dev);
-          best_platform = new cl::Platform(platform);
- 
-          found = true;
-        }
-      }
-    }
-
-    if (!found) {
-      stop("*** IMPORTANT: No suitable OpenCL devices found. Entering Fallback Mode. ***");
-    }
-
-    // Zugriff über den Pfeil-Operator ->
-    Rcout << "Selected device: " << best_device->getInfo<CL_DEVICE_NAME>()
-          << " on platform: " << best_platform->getInfo<CL_PLATFORM_NAME>() << "\n";
-          
-
-    // 💥 FIX: Konstruktoren nutzen jetzt die dereferenzierten Heap-Objekte (*best_device)
-    //    best_context = new cl::Context(*best_device);
-    //best_queue = new cl::CommandQueue(*best_context, *best_device, 0, &err);
-    // Linux/Mac initialisiert die langlebigen Pointer genau einmal hier drin
-#ifndef _WIN32
-    best_context = new cl::Context(*best_device);
-    best_queue = new cl::CommandQueue(*best_context, *best_device, 0, &err);
-#endif
-    hardware_initialized = true;
   }
+
+  if (!found_cached) {
+      cached_context = new cl::Context(dev);
+      cached_queue = new cl::CommandQueue(*cached_context, dev, 0, &err);
+      active_device_ids.push_back(dev());
+      active_contexts.push_back(cached_context);
+      active_queues.push_back(cached_queue);
+  }
+#endif
+
 
   // 🎯 WINDOWS-SPEZIFISCH: Frisch allokieren bei jedem Aufruf gegen den Intel-Lock
 #ifdef _WIN32
-  cl::Context current_context(*best_device);
-  cl::CommandQueue current_queue(current_context, *best_device, 0, &err);
+cl::Context current_context(dev);
+cl::CommandQueue current_queue(current_context, dev, 0, &err);
 #endif
+
   int rows = mat.nrow();
   int cols = mat.ncol();
   NumericMatrix outmat(rows, rows);
@@ -150,12 +124,23 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat) {
     // 🚀 Wir nutzen die langlebigen C-Handles aus den statischen Objekten!
     // 🚀 FIX: Klammern um den Stern und den Variablennamen setzen!
 #ifdef _WIN32
-    Device device(current_context(), (*best_device)(), current_queue());
+    Device device(current_context(), dev(), current_queue());
 #else
-    Device device((*best_context)(), (*best_device)(), (*best_queue)());
+    Device device((*cached_context)(), dev(), (*cached_queue)());
 #endif
 
-    std::string extensions = best_device->getInfo<CL_DEVICE_EXTENSIONS>();
+    // 🚀 Pfade zuweisen und Cache-Struktur ermitteln
+    device.set_kernel_path("distance_matrix.cl"); 
+  device.initialize_binary_cache_path(platform_idx, device_idx);
+  std::string binary_path = device.get_binary_cache_path();
+
+  // Ordner automatisch direkt über Rcpp erzeugen lassen
+  std::string target_dir = binary_path.substr(0, binary_path.find_last_of("/\\"));
+  Rcpp::Function r_dir_create("dir.create");
+  r_dir_create(target_dir, Rcpp::Named("recursive", true), Rcpp::Named("showWarnings", false));
+
+  std::string extensions = dev.getInfo<CL_DEVICE_EXTENSIONS>();
+
     device.info.is_fp64_capable = (extensions.find("cl_khr_fp64") != std::string::npos);
     // =========================================================================
     // 🚀 HIER IST DEIN VERMISSTER PROLOG!
@@ -169,78 +154,7 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat) {
     }
     checkpoint("1. Wrapper Device-Objekt standalone initialisiert");
 
-    // 📍 MESSFELD 3: Kernel Quelltext-Zuweisung im RAM
-    std::string core_kernel = R"(
-            __kernel void distance_matrix(__global real_t* output, __global const real_t* input, const int N, const int DIM) {
-                size_t flat_id = get_global_id(0);
-                size_t i = flat_id % N;
-                size_t j = flat_id / N;
-                if (i < N && j < N) {
-                    if (i == j) { output[j * N + i] = (real_t)0.0; return; }
-                    if (j < i) {
-                        real_t tmpRes = (real_t)0.0;
-                        for (int k = 0; k < DIM; ++k) {
-                            real_t diff = input[i + k * N] - input[j + k * N];
-                            tmpRes += diff * diff;
-                        }
-                        tmpRes = sqrt(tmpRes);
-                        output[j * N + i] = tmpRes;
-                        output[i * N + j] = tmpRes;
-                    }
-                }
-            }
-        )";
-    // 🌪️ DIE VERSCHMELZUNG IM RAM: Prolog und Core MÜSSEN wieder zusammengeklebt werden!
-    std::string final_kernel_code = prolog + "\n" + core_kernel;
 
-    // Wir übergeben das vollständige Paket an das Device
-    device.set_kernel_source(final_kernel_code);
-    checkpoint("3. Kernel-String an device übergeben");
-
-    // 🎯 DER ULTIMATIVE PLATTFORM- & HARDWARE-SPECIFIC CACHE-PATH
-    std::string os_label = "unknown";
-    std::string arch_label = "x86_64";
-    
-#if defined(__x86_64__) || defined(_M_X64)
-    arch_label = "x86_64";
-#elif defined(__aarch64__) || defined(_M_ARM64)
-    arch_label = "arm64";
-#endif
-
-#if defined(_WIN32)
-    os_label = "windows_" + arch_label;
-#elif defined(__APPLE__)
-    os_label = "macos_" + arch_label;
-#elif defined(__linux__)
-    os_label = "linux_" + arch_label;
-#endif
-
-    std::string platform_name = best_platform->getInfo<CL_PLATFORM_NAME>();
-    std::string device_name = best_device->getInfo<CL_DEVICE_NAME>();
-    
-    // Lambda zum Bereinigen von Leer- und Sonderzeichen für Windows/Linux/Mac-Ordnerpfade
-    auto clean_str = [](std::string s) {
-        std::string res = "";
-        for (char c : s) {
-            if (std::isalnum(c)) res += std::tolower(c);
-            else if (c == ' ' || c == '-' || c == '_') res += '_';
-        }
-        return res;
-    };
-    ////////
-    // Baut exakt: .cl_cache/macos_arm64/apple/apple_m3... oder .cl_cache/windows_x86_64/...
-        // 🎯 Der plattform- und hardware-spezifische Pfad wird berechnet:
-    std::string target_dir = "./.cl_cache/" + os_label + "/" + clean_str(platform_name) + "/" + clean_str(device_name);
-    
-    Rcpp::Function r_dir_create("dir.create");
-    r_dir_create(target_dir, Rcpp::Named("recursive", true), Rcpp::Named("showWarnings", false));
-
-    std::string binary_path = CLGetHardwareCachePath();
-
-    // 🚀 KORREKTUR: Die Rückmeldung MUSS vor der if-Bedingung stehen!
-    // Damit weiß R immer sofort, wo das File liegt.
-    Rcpp::Function r_sys_setenv("Sys.setenv");
-    r_sys_setenv(Rcpp::Named("R_OPENCL_GENERATED_PATH", binary_path));
 
     // Erst JETZT prüfen wir, ob die Datei da ist
     std::ifstream check_file(binary_path, std::ios::binary);
@@ -253,10 +167,26 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat) {
         checkpoint("4. Vorkompiliertes Binary direkt geladen (JIT übersprungen)");
     } else {
         // 🛠️ BUILD-PFAD: Kompiliert regulär und exportiert danach
+        // 📂 .cl Quellcodedatei von Festplatte einlesen
+      std::ifstream core_file(device.get_kernel_path());
+        if (!core_file.good()) {
+          stop("💥 Fehler: Die Kernel-Datei '" + device.get_kernel_path() + "' wurde nicht gefunden!");
+        }
+        std::stringstream buffer;
+        buffer << core_file.rdbuf();
+        std::string core_kernel = buffer.str();
+        core_file.close();
+
+        // Verschmelzung im RAM (Prolog + Dateicode)
+        std::string final_kernel_code = prolog + "\n" + core_kernel;
+        device.set_kernel_source(final_kernel_code);
+        checkpoint("3. Kernel-String an device übergeben");
+
+        // In-Situ Build anwerfen
         std::string compile_flags = "-cl-opt-disable";
         device.compile_kernel(compile_flags, false);
         checkpoint("4. JIT-Compiler über Wrapper beendet (compile_kernel)");
-
+ 
         // 💾 DER KORREKTE BINÄR-EXPORT (Greift tief in das Khronos-Vektor-Layout):
         // 💾 DER PLATTFORMÜBERGREIFENDE BYTESYNCHRONE BINÄR-EXPORT
         auto bin_data = device.get_cl_program().getInfo<CL_PROGRAM_BINARIES>();

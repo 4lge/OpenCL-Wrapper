@@ -329,6 +329,7 @@
 	  string kernel_file;
 	  string kernel_name;
 	  string kernel_path;
+      string binary_cache_path;
 	  bool kernel_loaded = false;
 	  bool kernel_compiled = false;
 	  inline string enable_device_capabilities() const { return // enable FP64/FP16 capabilities if available
@@ -483,6 +484,10 @@
 	  inline string get_kernel_path(){
 	    return this->kernel_path;
 	  }
+      // 🎯 DER NEUE CACHE-GETTER: Gibt den geschützten Binärpfad nach außen frei
+      inline std::string get_binary_cache_path() const {
+        return this->binary_cache_path;
+      }
 	  ////
 	  // 🚀 NEU: Ermöglicht das direkte Injizieren von Kernel-Code als RAM-String!
 	  inline void set_kernel_source(const std::string& source_code) {
@@ -642,6 +647,60 @@
 	    write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>()[0][0]); // save binary (ptx file)
 #endif // PTX
   }
+    // 🎯 DIE NEUE ZUSTANDSLOSE CACHE-METHODE IM WRAPPER-BACKEND
+    void initialize_binary_cache_path(int platform_idx, int device_idx) {
+        std::vector<cl::Platform> platforms;
+        cl::Platform::get(&platforms);
+        if (platform_idx >= (int)platforms.size()) return;
+        cl::Platform platform = platforms[platform_idx];
+
+        std::vector<cl::Device> devices;
+        platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
+        if (device_idx >= (int)devices.size()) return;
+        cl::Device dev = devices[device_idx];
+
+        // 1. OS- und Architektur-Labels bestimmen
+        std::string os_label = "unknown";
+        std::string arch_label = "x86_64";
+    #if defined(__x86_64__) || defined(_M_X64)
+        arch_label = "x86_64";
+    #elif defined(__aarch64__) || defined(_M_ARM64)
+        arch_label = "arm64";
+    #endif
+
+    #if defined(_WIN32)
+        os_label = "windows_" + arch_label;
+    #elif defined(__APPLE__)
+        os_label = "macos_" + arch_label;
+    #elif defined(__linux__)
+        os_label = "linux_" + arch_label;
+    #endif
+
+        std::string platform_name = platform.getInfo<CL_PLATFORM_NAME>();
+        std::string device_name = dev.getInfo<CL_DEVICE_NAME>();
+        
+        auto clean_str = [](std::string s) {
+            std::string res = "";
+            for (char c : s) {
+                if (std::isalnum(c)) res += std::tolower(c);
+                else if (c == ' ' || c == '-' || c == '_') res += '_';
+            }
+            return res;
+        };
+
+        // 2. Extrahiere den reinen Filenamen ohne Pfad und Endung (z.B. von "path/to/distance.cl" zu "distance")
+        std::string filename = "kernel";
+        if (!this->kernel_path.empty()) {
+            size_t last_slash = this->kernel_path.find_last_of("/\\");
+            std::string raw_file = (last_slash == std::string::npos) ? this->kernel_path : this->kernel_path.substr(last_slash + 1);
+            size_t last_dot = raw_file.find_last_of(".");
+            filename = (last_dot == std::string::npos) ? raw_file : raw_file.substr(0, last_dot);
+        }
+
+        // 3. Setze das fertige Verzeichnis und den dynamischen Binärnamen zusammen
+        std::string target_dir = "./.cl_cache/" + os_label + "/" + clean_str(platform_name) + "/" + clean_str(device_name);
+        this->binary_cache_path = target_dir + "/" + filename + ".bin";
+    }      
   // 🚀 Lädt einen vorkompilierten Binär-Kernel (PTX / SPIR-V / Intel Bin)
   // 🔬 HOCHAUFLÖSENDES MESSFELD FÜR WINDOWS BINARY LOAD
   inline void load_compiled_binary(const std::string& binary_path) {
