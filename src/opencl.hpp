@@ -414,38 +414,32 @@
 	    */
 	    this->exists = true;
 	  }
-	  // 🚀 DER DEFINITIVE WINDOWS- & LINUX-RETTUNGSTRACK FÜR DEINEN FORK:
-	  inline Device(cl_context ext_context, cl_device_id ext_device, cl_command_queue ext_queue) {
-	    this->exists = true;
-	    this->c_code = "";
-	    this->kernel_compiled = false;
+      // 🚀 DER DEFINITIVE WINDOWS- & LINUX-RETTUNGSTRACK FÜR DEINEN FORK:
+      inline Device(cl_context ext_context, cl_device_id ext_device, cl_command_queue ext_queue) {
+    this->exists = true;
+    this->c_code = "";
+    this->kernel_compiled = false;
 
-	    // 1. Geteilte Handles zuweisen.
-	    // 🛡️ WICHTIG: Wir rufen den reinen Zuweisungs-Konstruktor OHNE 'true' (retain) auf.
-	    // Dadurch übernimmt das Stack-Objekt die Queue flüchtig, zerstört sie aber am Ende der Funktion NICHT!
+#ifdef _WIN32
+    this->cl_queue = cl::CommandQueue(ext_queue, false);
+#else
+    this->cl_queue = cl::CommandQueue(ext_queue, true);
+#endif
 
-	#ifdef _WIN32
-	    // Windows bleibt bei 'false', um den Treiber-Hänger (Loader Lock) beim Schließen der DLL zu verhindern
-	    this->cl_queue = cl::CommandQueue(ext_queue, false);
-	#else
-	    // Linux/TUXEDO nutzt 'true' (Retaining), um den Segfault beim 2. Durchlauf zu eliminieren
-	    this->cl_queue = cl::CommandQueue(ext_queue, true);
-	#endif
-	    // 2. Info-Struktur der Basisklasse mit stabilen Alibi-Werten mappen.
-	    // Das verhindert riskante Treiber-Abfragen im R-Thread und rettet Windows/Intel vor dem CU-Zero-Freeze!
-	    this->info.cl_context = ext_context;
-	    this->info.cl_device  = ext_device;
-	    this->info.opencl_c_version = "3.0";
-	    this->info.patch_intel_gpu_above_4gb = false;
-	    this->info.name = "OpenCLeaR Shared Accelerator";
-	    this->info.vendor = "Generic OpenCL Driver";
-	    this->info.memory = 4096u;          
-	    this->info.compute_units = 16u;     // 16 CUs (Sichert das Grid-Layout ab)
-	    this->info.clock_frequency = 1000u;
-	    this->info.is_fp64_capable = true;  // Wird im C++-Backend überschrieben
-
-	    // print_device_info(this->info); // 🛡️ Auskommentiert lassen wegen des Intel Extension-Hängers!
-	  }
+    // 🎯 FIX: Wir initialisieren die C++ Wrapper-Objekte über die korrekten Khronos-C-Konstruktoren,
+    // damit alle internen Treiber-Metadaten auf Windows und Linux voll zur Verfügung stehen!
+    this->info.cl_context = cl::Context(ext_context, true); 
+    this->info.cl_device  = cl::Device(ext_device, true); 
+    
+    this->info.opencl_c_version = "3.0";
+    this->info.patch_intel_gpu_above_4gb = false;
+    this->info.name = "OpenCLeaR Shared Accelerator";
+    this->info.vendor = "Generic OpenCL Driver";
+    this->info.memory = 4096u;          
+    this->info.compute_units = 16u;     
+    this->info.clock_frequency = 1000u;
+    this->info.is_fp64_capable = true;  
+  }
 	  
 	  inline Device() {
 	    this->c_code = "";
@@ -536,173 +530,146 @@
 	    }
 
 	  }
-	  inline void compile_kernel(std::string opt = "", bool force_recompile = false){
-	    auto t_start = std::chrono::high_resolution_clock::now();
+      //
+  inline void compile_kernel(std::string opt = "", bool force_recompile = false){
+    auto t_start = std::chrono::high_resolution_clock::now();
 
-	    if (!force_recompile && this->kernel_compiled) {
-	      print_info("skipping compile step");
-	      return;
-	    }
-	    cl::Program::Sources cl_source;
-	    if (this->c_code.empty()) {
-	      this->c_code = get_opencl_c_code();
-	    }
-	    // 🚀 Sicherstellen, dass die mathematische Bibliothek im R-Thread niemals leer ist
-	    // std::string secure_c_code = get_opencl_c_code();
+    if (!force_recompile && this->kernel_compiled) {
+      print_info("skipping compile step");
+      return;
+    }
+    cl::Program::Sources cl_source;
+    if (this->c_code.empty()) {
+      this->c_code = get_opencl_c_code();
+    }
 
-	    compiled_code = enable_device_capabilities() + "\n" + "\n" + c_code + "\n" + kernel_code;
+    compiled_code = enable_device_capabilities() + "\n" + "\n" + c_code + "\n" + kernel_code;
 
+    cl_source.push_back({ compiled_code.c_str(), compiled_code.length() });
+    this->cl_program = cl::Program(info.cl_context, cl_source);
 
-	#ifdef _WIN32
-	    //    compiled_code += "\n\0";
-	#endif
-
-
-	    //print_info(compiled_code);
-
-	#ifdef _WIN32
-	#include <thread>
-	#include <chrono>
-	#endif
-
-	    cl_source.push_back({ compiled_code.c_str(), compiled_code.length() });
-	    this->cl_program = cl::Program(info.cl_context, cl_source);
-	    // const string build_options = opt+" -cl-std=CL"+info.opencl_c_version+" -cl-finite-math-only -cl-no-signed-zeros -cl-mad-enable"+(info.patch_intel_gpu_above_4gb ? " -cl-intel-greater-than-4GB-buffer-required" : "");
-
-
-	    auto t_prog = std::chrono::high_resolution_clock::now();
-	    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 1. cl::Program aus Source erzeugt | Zeit: " 
+    auto t_prog = std::chrono::high_resolution_clock::now();
+    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 1. cl::Program aus Source erzeugt | Zeit: " 
 		      << std::chrono::duration<double>(t_prog - t_start).count() << "s" << std::endl << std::flush;
-	    
-	    // 1. Erzeugen Sie die Standard-Optionen
-	    string build_options = opt + " -cl-std=CL" + info.opencl_c_version;
+    
+    string build_options = opt + " -cl-std=CL" + info.opencl_c_version;
 
-	    // 2. Fügen Sie die aggressiven Math-Optimierungen NUR hinzu, wenn NICHT deaktiviert werden soll
-	    if (opt.find("-cl-opt-disable") == string::npos) {
-	      build_options += " -cl-finite-math-only -cl-no-signed-zeros -cl-mad-enable";
-	    }
+    if (opt.find("-cl-opt-disable") == string::npos) {
+      build_options += " -cl-finite-math-only -cl-no-signed-zeros -cl-mad-enable";
+    }
 
-	    // 3. Den Intel-Spezial-Patch wie gewohnt anhängen
-	    if (info.patch_intel_gpu_above_4gb && !info.is_cpu) {
-	      build_options += " -cl-intel-greater-than-4GB-buffer-required";
-	    }
-	#ifndef LOG
-	    std::string final_options = build_options + " -w";
-	#else
-	    std::string final_options = build_options;
-	#endif
+    if (info.patch_intel_gpu_above_4gb && !info.is_cpu) {
+      build_options += " -cl-intel-greater-than-4GB-buffer-required";
+    }
+#ifndef LOG
+    std::string final_options = build_options + " -w";
+#else
+    std::string final_options = build_options;
+#endif
 
-	    int error = 0;
-	    auto t_build_start = std::chrono::high_resolution_clock::now();
+    int error = 0;
+    auto t_build_start = std::chrono::high_resolution_clock::now();
 
-	#ifdef _WIN32
-	    // 🚀 DER DEFINITIVE WINDOWS-RTERM-RETTER (Isolierter Detach-Tunnel)
-	    // Wir lagern den Build und die anschließende Treiber-Finalisierung 
-	    // in einen komplett losgelösten System-Thread aus, den Rterm nicht sperren kann!
-	    
-	    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 2. Starte asynchrones cl_program.build()..." << std::endl << std::flush;
+#ifdef _WIN32
+    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 2. Starte asynchrones cl_program.build()..." << std::endl << std::flush;
 
-	    bool build_finished = false;
+    bool build_finished = false;
 
-	    std::thread t([&]() {
-		error = cl_program.build({ this->info.cl_device }, final_options.c_str());
-		build_finished = true;
-	    });
-	    
-	    // Wir trennen den Thread sofort physisch vom Rterm-Prozessraum!
-	    t.detach(); 
+    std::thread t([=, &build_finished, &error, this]() {
+        error = cl_program.build({ this->info.cl_device }, final_options.c_str());
+        build_finished = true;
+    });
+    
+    t.detach(); 
 
-	    // Warteschleife auf App-Ebene (Windows darf frei Threads switchen)
-	    while (!build_finished) {
-		std::this_thread::sleep_for(std::chrono::milliseconds(5));
-	    }
-	#else
-	    // Linux und macOS kompilieren wie gewohnt nativ und ohne Zusatz-Overhead
-	    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 2. Starte natives cl_program.build()..." << std::endl << std::flush;
-	    error = cl_program.build({ this->info.cl_device }, final_options.c_str());
-	#endif
+    while (!build_finished) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    
+    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 3. cl_program.build() beendet. Erwische Windows-Scheduler..." << std::endl << std::flush;
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+#else
+    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 2. Starte natives cl_program.build()..." << std::endl << std::flush;
+    error = cl_program.build({ this->info.cl_device }, final_options.c_str());
+#endif
 
-	    auto t_build_end = std::chrono::high_resolution_clock::now();
-	    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 3. cl_program.build() beendet | Code: " << error 
+    auto t_build_end = std::chrono::high_resolution_clock::now();
+    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 3. cl_program.build() beendet | Code: " << error 
 		      << " | Reine Build-Zeit: " << std::chrono::duration<double>(t_build_end - t_build_start).count() << "s" << std::endl << std::flush;
-	    
-	    // 💥 FEHLER 3 UMANGEN: getBuildInfo blockiert Streams live unter Windows, 
-	    // daher holen wir das Log NUR noch im echten Absturzfall ab!
-	    if(error) {
-	      this->kernel_compiled = false;
-	#ifndef LOG
-	      print_warning(cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device));
-	#else
-	      const std::string log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
-	      if((uint)log.length() > 2u) print_warning(log);
-	#endif
-	      //std::string detailed_error = clerror::get_error_full((int)error);
-	      throw std::runtime_error("OpenCL Fatal Exception -> ");
-	    } else {
-	      print_info("OpenCL C code successfully compiled.");
-	      this->kernel_compiled = true;
-	    }
+    
+    if(error) {
+      this->kernel_compiled = false;
+#ifndef LOG
+      print_warning(cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device));
+#else
+      const std::string log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
+      if((uint)log.length() > 2u) print_warning(log);
+#endif
+      throw std::runtime_error("OpenCL Fatal Exception -> ");
+    } else {
+      print_info("OpenCL C code successfully compiled.");
+      this->kernel_compiled = true;
+    }
 
-	#ifdef PTX // generate assembly (ptx) file for OpenCL code
-	    write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>()[0][0]); // save binary (ptx file)
-#endif // PTX
+#ifdef PTX 
+    write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>());
+#endif 
   }
-    // 🎯 DIE NEUE ZUSTANDSLOSE CACHE-METHODE IM WRAPPER-BACKEND
-    void initialize_binary_cache_path(int platform_idx, int device_idx) {
-        std::vector<cl::Platform> platforms;
-        cl::Platform::get(&platforms);
-        if (platform_idx >= (int)platforms.size()) return;
-        cl::Platform platform = platforms[platform_idx];
 
-        std::vector<cl::Device> devices;
-        platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
-        if (device_idx >= (int)devices.size()) return;
-        cl::Device dev = devices[device_idx];
+      //
 
-        // 1. OS- und Architektur-Labels bestimmen
-        std::string os_label = "unknown";
-        std::string arch_label = "x86_64";
-    #if defined(__x86_64__) || defined(_M_X64)
-        arch_label = "x86_64";
-    #elif defined(__aarch64__) || defined(_M_ARM64)
-        arch_label = "arm64";
-    #endif
+  void initialize_binary_cache_path(int platform_idx, int device_idx) {
+      std::vector<cl::Platform> platforms;
+      cl::Platform::get(&platforms);
+      if (platform_idx >= (int)platforms.size()) return;
+      cl::Platform platform = platforms[platform_idx];
 
-    #if defined(_WIN32)
-        os_label = "windows_" + arch_label;
-    #elif defined(__APPLE__)
-        os_label = "macos_" + arch_label;
-    #elif defined(__linux__)
-        os_label = "linux_" + arch_label;
-    #endif
+      std::vector<cl::Device> devices;
+      platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
+      if (device_idx >= (int)devices.size()) return;
+      cl::Device dev = devices[device_idx];
 
-        std::string platform_name = platform.getInfo<CL_PLATFORM_NAME>();
-        std::string device_name = dev.getInfo<CL_DEVICE_NAME>();
-        
-        auto clean_str = [](std::string s) {
-            std::string res = "";
-            for (char c : s) {
-                if (std::isalnum(c)) res += std::tolower(c);
-                else if (c == ' ' || c == '-' || c == '_') res += '_';
-            }
-            return res;
-        };
+      std::string os_label = "unknown";
+      std::string arch_label = "x86_64";
+  #if defined(__x86_64__) || defined(_M_X64)
+      arch_label = "x86_64";
+  #elif defined(__aarch64__) || defined(_M_ARM64)
+      arch_label = "arm64";
+  #endif
 
-        // 2. Extrahiere den reinen Filenamen ohne Pfad und Endung (z.B. von "path/to/distance.cl" zu "distance")
-        std::string filename = "kernel";
-        if (!this->kernel_path.empty()) {
-            size_t last_slash = this->kernel_path.find_last_of("/\\");
-            std::string raw_file = (last_slash == std::string::npos) ? this->kernel_path : this->kernel_path.substr(last_slash + 1);
-            size_t last_dot = raw_file.find_last_of(".");
-            filename = (last_dot == std::string::npos) ? raw_file : raw_file.substr(0, last_dot);
-        }
+  #if defined(_WIN32)
+      os_label = "windows_" + arch_label;
+  #elif defined(__APPLE__)
+      os_label = "macos_" + arch_label;
+  #elif defined(__linux__)
+      os_label = "linux_" + arch_label;
+  #endif
 
-        // 3. Setze das fertige Verzeichnis und den dynamischen Binärnamen zusammen
-        std::string target_dir = "./.cl_cache/" + os_label + "/" + clean_str(platform_name) + "/" + clean_str(device_name);
-        this->binary_cache_path = target_dir + "/" + filename + ".bin";
-    }      
-  // 🚀 Lädt einen vorkompilierten Binär-Kernel (PTX / SPIR-V / Intel Bin)
-  // 🔬 HOCHAUFLÖSENDES MESSFELD FÜR WINDOWS BINARY LOAD
+      std::string platform_name = platform.getInfo<CL_PLATFORM_NAME>();
+      std::string device_name = dev.getInfo<CL_DEVICE_NAME>();
+      
+      auto clean_str = [](std::string s) {
+          std::string res = "";
+          for (char c : s) {
+              if (std::isalnum(c)) res += std::tolower(c);
+              else if (c == ' ' || c == '-' || c == '_') res += '_';
+          }
+          return res;
+      };
+
+      std::string filename = "kernel";
+      if (!this->kernel_path.empty()) {
+          size_t last_slash = this->kernel_path.find_last_of("/\\");
+          std::string raw_file = (last_slash == std::string::npos) ? this->kernel_path : this->kernel_path.substr(last_slash + 1);
+          size_t last_dot = raw_file.find_last_of(".");
+          filename = (last_dot == std::string::npos) ? raw_file : raw_file.substr(0, last_dot);
+      }
+
+      std::string target_dir = "./.cl_cache/" + os_label + "/" + clean_str(platform_name) + "/" + clean_str(device_name);
+      this->binary_cache_path = target_dir + "/" + filename + ".bin";
+  }      
+
+      // 🚀 Lädt einen vorkompilierten Binär-Kernel (PTX / SPIR-V / Intel Bin)
   inline void load_compiled_binary(const std::string& binary_path) {
     auto t0 = std::chrono::high_resolution_clock::now();
     
@@ -765,6 +732,44 @@
               << std::chrono::duration<double>(t4 - t3).count() << "s" << std::endl << std::flush;
 
     this->kernel_compiled = true;
+  }
+      // 💾 NATIVE BACKEND-METHODE FÜR DEN BYTESYNCHRONEN ELF/PTX-EXPORT
+      inline void export_compiled_binary(const std::string& binary_path) {
+        try {
+          std::cout << "💾 [EXPORT] Starte treibersicheren ELF-Export..." << std::endl << std::flush;
+          // 1. Absolute C-API Sicherheit: Bytegröße direkt als nackte size_t abfragen (Umgeht den Intel-Vektor-Crash!)
+          size_t real_size = 0;
+          cl_int err = clGetProgramInfo(this->cl_program(), CL_PROGRAM_BINARY_SIZES, 
+                                        sizeof(size_t), &real_size, NULL);
+          
+          if (err != CL_SUCCESS || real_size == 0) {
+              std::cerr << "⚠️ Warnung: Keine gueltigen Binaergroessen vom Treiber gemeldet! Code: " << err << std::endl;
+              return;
+          }
+
+          std::vector<unsigned char> raw_buffer(real_size);
+          std::vector<unsigned char*> binaries_pointers = { raw_buffer.data() };
+
+          err = clGetProgramInfo(this->cl_program(), CL_PROGRAM_BINARIES, 
+                                        sizeof(unsigned char*) * binaries_pointers.size(), 
+                                        binaries_pointers.data(), NULL);
+          
+          std::cout << "💾 [EXPORT] Treiber-Buffer ausgelesen (" << real_size << " Bytes). Schreibe Datei..." << std::endl << std::flush;
+
+          if (err == CL_SUCCESS) {
+              std::ofstream out(binary_path, std::ios::binary | std::ios::out);
+              out.write(reinterpret_cast<const char*>(raw_buffer.data()), real_size);
+              out.close();
+              
+              std::cout << "💾 OpenCL-Binary erfolgreich exportiert: " << binary_path 
+                        << " (" << real_size << " Bytes)" << std::endl << std::flush;
+          } else {
+              std::cerr << "💥 Fehler beim Abrufen der Binaerdaten. Code: " << err << std::endl;
+          }
+      } 
+      catch (const std::exception& e) {
+          std::cerr << "💥 Exception im export_compiled_binary: " << e.what() << std::endl;
+      }
   }
 };
 
