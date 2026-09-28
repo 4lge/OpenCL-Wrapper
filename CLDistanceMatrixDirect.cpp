@@ -92,11 +92,10 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat, int platform_idx 
 
   // 🎯 INSTANZIIRUNG DES WRAPPERS MIT DEN PLATTFORMSPEZIFISCHEN HANDLES
 #ifdef _WIN32
-  Device device(current_context(), dev(), current_queue());
+  Device device(current_context(), dev(), current_queue(), platform_idx, device_idx);
 #else
-  Device device((*active_context)(), dev(), (*active_queue)());
+  Device device((*active_context)(), dev(), (*active_queue)(), platform_idx, device_idx);
 #endif
-
   
   // 🎯 DAS NEUE GEKAPSELTE INITIALISIERUNGS-MUSTER:
   // Setzt die Quelldatei, berechnet die Ordner und regelt den Kalt-/Warmstart vollkommen autonom!
@@ -104,7 +103,7 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat, int platform_idx 
   device.initialize_binary_cache_path(platform_idx, device_idx);
   
   // 🚀 EIN EINZIGER BEFEHL: Erledigt alles im Backend sychron und prozess-isoliert!
-  device.load_or_build_kernel(platform_idx, device_idx);
+  device.load_or_build_kernel();
 
   int rows = mat.nrow();
   int cols = mat.ncol();
@@ -136,7 +135,7 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat, int platform_idx 
     // 🎯 DER NEUE REINE WRAPPER-DURCHREICHER:
     // Der gesamte JIT-Compile-Zweig, das Einlesen der .cl-Datei und das Exportieren
     // sind vollständig in diese eine Methode gewandert!
-    device.load_or_build_kernel(platform_idx, device_idx);
+    //device.load_or_build_kernel();
     checkpoint("2. OpenCL-Programm erfolgreich geladen (JIT übersprungen oder über CLI-Compiler erzeugt)");
 
     int input_size = rows * cols;

@@ -4,7 +4,7 @@
 	#include <future>
 	#include <thread>
 	#include <chrono>
-
+#include <sys/stat.h>
 	#define WORKGROUP_SIZE 64 // needs to be 64 to fully use AMD GPUs
 	//#define PTX
 	//#define LOG
@@ -330,6 +330,8 @@
 	  string kernel_name;
 	  string kernel_path;
       string binary_cache_path;
+      int platform_idx = 0;
+      int device_idx = 0;
 	  bool kernel_loaded = false;
 	  bool kernel_compiled = false;
 	  inline string enable_device_capabilities() const { return // enable FP64/FP16 capabilities if available
@@ -415,11 +417,14 @@
 	    this->exists = true;
 	  }
       // 🚀 DER DEFINITIVE WINDOWS- & LINUX-RETTUNGSTRACK FÜR DEINEN FORK:
-      inline Device(cl_context ext_context, cl_device_id ext_device, cl_command_queue ext_queue) {
-    this->exists = true;
+      inline Device(cl_context ext_context, cl_device_id ext_device, cl_command_queue ext_queue, int p_idx = 0, int d_idx = 0) {
+        
+        this->exists = true;
     this->c_code = "";
     this->kernel_compiled = false;
-
+    this->platform_idx = p_idx;
+    this->device_idx = d_idx;
+    
 #ifdef _WIN32
     this->cl_queue = cl::CommandQueue(ext_queue, false);
 #else
@@ -780,38 +785,74 @@
           std::cerr << "💥 Exception im export_compiled_binary: " << e.what() << std::endl;
       }
   }
-        inline void load_or_build_kernel(int platform_idx, int device_idx) {
+#include <sys/stat.h> // 🎯 Zwingend oben einbinden für die Zeitstempel (stat)
+
+// ...
+
+#include <sys/stat.h> // 🎯 WICHTIG: Muss ganz oben in opencl.hpp stehen!
+
+// ...
+
+  inline void load_or_build_kernel() {
       std::string binary_path = this->get_binary_cache_path();
+      std::string source_path = this->get_kernel_path();
+
       if (binary_path.empty()) {
           throw std::runtime_error("💥 Fehler: Cache-Pfad konnte im Backend nicht ermittelt werden!");
       }
 
+      // 1. Prüfen, ob das vorkompilierte Binary überhaupt existiert
       std::ifstream check_file(binary_path, std::ios::binary);
       bool binary_exists = check_file.good();
       check_file.close();
 
-      if (binary_exists) {
-          std::cout << "⏱️ [BACKEND] Vorkompiliertes Binary gefunden. Überspringe JIT..." << std::endl << std::flush;
+      // 🎯 2. DER MAKE-ÄHNLICHE ZEITSTEMPEL-VERGLEICH (C++11 konform für macOS 10.12+)
+      bool source_is_newer = false;
+      if (binary_exists && !source_path.empty()) {
+#ifdef _WIN32
+          struct _stat stat_source;
+          struct _stat stat_binary;
+          int src_res = _stat(source_path.c_str(), &stat_source);
+          int bin_res = _stat(binary_path.c_str(), &stat_binary);
+#else
+          struct stat stat_source;
+          struct stat stat_binary;
+          int src_res = stat(source_path.c_str(), &stat_source);
+          int bin_res = stat(binary_path.c_str(), &stat_binary);
+#endif          
+          // Holt die Dateistatistiken (st_mtime = Letzte Modifikationszeit)
+          
+          if (src_res == 0 && bin_res == 0) {
+              if (stat_source.st_mtime > stat_binary.st_mtime) {
+                  source_is_newer = true;
+                  std::cout << "🔄 [MAKE-REBUILD] OpenCL-Quellcode wurde veraendert! Erwische veraltetes Binary..." << std::endl << std::flush;
+              }
+          }
+      }
+
+      // 🚀 INTELLIGENTE WARMSTART-WEICHE
+      if (binary_exists && !source_is_newer) {
+          std::cout << "⏱️ [BACKEND] Vorkompiliertes, aktuelles Binary gefunden. Überspringe JIT..." << std::endl << std::flush;
           this->load_compiled_binary(binary_path);
       } else {
-          std::cout << "⏱️ [BACKEND] Binary fehlt. Bereite Verzeichnis vor und starte Kompilierung..." << std::endl << std::flush;
+          std::cout << "⏱️ [BACKEND] Binary fehlt oder ist veraltet. Starte Standalone-Kompilierung..." << std::endl << std::flush;
 
-          // 🎯 AUTONOME ORDNER-ERSTELLUNG DIREKT IM BACKEND:
-          // Extrahiert das reine Verzeichnis aus dem binären Cache-Pfad und legt es rekursiv an
+          // Ordnerstruktur für den Cache rekursiv anlegen
           std::string target_dir = binary_path.substr(0, binary_path.find_last_of("/\\"));
-          
           native_mkdir_recursive(target_dir);
-   
+
+          // OS-Weiche für den Standalone-Compiler
           std::string compiler_exe = "./ocl_compiler";
 #ifdef _WIN32
           compiler_exe = "ocl_compiler.exe";
 #endif
 
+          // 🎯 NUTZT DIE INTERNEN MEMBER-INDIZES: Vollkommen autonom und fehlerfrei!
           std::string compiler_cmd = compiler_exe + 
-                                     " -i " + this->get_kernel_path() + 
+                                     " -i " + source_path + 
                                      " -c ./.cl_cache" + 
-                                     " -p " + std::to_string(platform_idx) + 
-                                     " -d " + std::to_string(device_idx);
+                                     " -p " + std::to_string(this->platform_idx) + 
+                                     " -d " + std::to_string(this->device_idx);
 
           std::cout << "🔄 [BACKEND-EXEC] " << compiler_cmd << std::endl << std::flush;
 
@@ -820,7 +861,7 @@
               throw std::runtime_error("💥 Fehler: Der Standalone CLI-Compiler-Prozess lieferte einen Fehler-Code (" + std::to_string(status) + ")!");
           }
 
-          std::cout << "💾 [BACKEND] Binary erfolgreich erzeugt. Lade Code..." << std::endl << std::flush;
+          std::cout << "💾 [BACKEND] Neues Binary erfolgreich erzeugt. Lade Code..." << std::endl << std::flush;
           this->load_compiled_binary(binary_path);
       }
   }
