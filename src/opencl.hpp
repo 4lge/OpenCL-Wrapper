@@ -332,6 +332,8 @@
       string binary_cache_path;
       int platform_idx = 0;
       int device_idx = 0;
+      string compiler_path;
+      string compiler_binary;
 	  bool kernel_loaded = false;
 	  bool kernel_compiled = false;
 	  inline string enable_device_capabilities() const { return // enable FP64/FP16 capabilities if available
@@ -424,6 +426,14 @@
     this->kernel_compiled = false;
     this->platform_idx = p_idx;
     this->device_idx = d_idx;
+    // 🎯 UNIVERSALER PFAD-DEFAULT FÜR WINDOWS, LINUX & MACOS:
+    this->compiler_path = "./";
+
+#ifdef _WIN32
+    this->compiler_binary = "ocl_compiler.exe";
+#else
+    this->compiler_binary = "ocl_compiler"; // Einheitlich ohne Endung für Linux & macOS
+#endif
     
 #ifdef _WIN32
     this->cl_queue = cl::CommandQueue(ext_queue, false);
@@ -487,7 +497,12 @@
       inline std::string get_binary_cache_path() const {
         return this->binary_cache_path;
       }
-	  ////
+      inline void set_compiler_path(const std::string& path) { this->compiler_path = path; }
+      inline std::string get_compiler_path() const { return this->compiler_path; }
+      
+      inline void set_compiler_binary(const std::string& binary) { this->compiler_binary = binary; }
+      inline std::string get_compiler_binary() const { return this->compiler_binary; }
+	  
 	  // 🚀 NEU: Ermöglicht das direkte Injizieren von Kernel-Code als RAM-String!
 	  inline void set_kernel_source(const std::string& source_code) {
 	    this->kernel_code = source_code;
@@ -840,19 +855,35 @@
           // Ordnerstruktur für den Cache rekursiv anlegen
           std::string target_dir = binary_path.substr(0, binary_path.find_last_of("/\\"));
           native_mkdir_recursive(target_dir);
-
-          // OS-Weiche für den Standalone-Compiler
-          std::string compiler_exe = "./ocl_compiler";
+          // 🎯 UNIVERSELLE SLASH-VERSCHMELZUNG (Windows- & Unix-Safe):
+          std::string full_compiler_cmd = this->compiler_path;
 #ifdef _WIN32
-          compiler_exe = "ocl_compiler.exe";
-#endif
+          // Wenn der Pfad unter Windows der Default "./" oder leeres Verzeichnis ist,
+          // rufen wir die Exe direkt ohne Slashes auf, damit cmd.exe nicht stolpert!
+          if (this->compiler_path == "./" || this->compiler_path == "." || this->compiler_path.empty()) {
+              full_compiler_cmd = this->compiler_binary;
+          } else {
+              full_compiler_cmd = this->compiler_path;
+              if (full_compiler_cmd.back() != '/' && full_compiler_cmd.back() != '\\') {
+                  full_compiler_cmd += "/";
+              }
+              full_compiler_cmd += this->compiler_binary;
+          }
+#else
+          // Linux und macOS nutzen weiterhin die universelle Slash-Verschmelzung
+          full_compiler_cmd = this->compiler_path;
+          if (!full_compiler_cmd.empty() && full_compiler_cmd.back() != '/' && full_compiler_cmd.back() != '\\') {
+              full_compiler_cmd += "/";
+          }
+          full_compiler_cmd += this->compiler_binary;
+#endif 
 
           // 🎯 NUTZT DIE INTERNEN MEMBER-INDIZES: Vollkommen autonom und fehlerfrei!
-          std::string compiler_cmd = compiler_exe + 
-                                     " -i " + source_path + 
-                                     " -c ./.cl_cache" + 
-                                     " -p " + std::to_string(this->platform_idx) + 
-                                     " -d " + std::to_string(this->device_idx);
+          std::string compiler_cmd = full_compiler_cmd +
+            " -i " + source_path + 
+            " -c ./.cl_cache" + 
+            " -p " + std::to_string(this->platform_idx) + 
+            " -d " + std::to_string(this->device_idx);
 
           std::cout << "🔄 [BACKEND-EXEC] " << compiler_cmd << std::endl << std::flush;
 

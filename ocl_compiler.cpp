@@ -20,10 +20,17 @@
   #define CL_HPP_ENABLE_EXCEPTIONS
 #endif
  
+
+// 🎯 DIE GLOBALE SPEICHER-VARIABLE FÜR DIE LIBRARAY
+static std::string global_math_library_code = "\n";
+
+// 🎯 HIER WIRD DIE DATEI DYNAMISCH AUSGEGEBEN
+inline std::string get_opencl_c_code() { 
+    return global_math_library_code; 
+}
+
 #include "src/OpenCL/include/CL/opencl.hpp"
 #include "src/opencl.hpp"
-
-inline std::string get_opencl_c_code() { return "\n"; }
 
 
 void print_usage() {
@@ -33,6 +40,7 @@ void print_usage() {
 int main(int argc, char* argv[]) {
     std::string input_path = "";
     std::string cache_base = "./.cl_cache";
+    std::string library_file_path = ""; // 🚀 Einheitlicher Name für den Parser
     int platform_idx = 0;
     int device_idx = 0;
 
@@ -43,8 +51,9 @@ int main(int argc, char* argv[]) {
         else if ((arg == "-c" || arg == "--cache") && i + 1 < argc) cache_base = argv[++i];
         else if ((arg == "-p" || arg == "--platform") && i + 1 < argc) platform_idx = std::stoi(argv[++i]);
         else if ((arg == "-d" || arg == "--device") && i + 1 < argc) device_idx = std::stoi(argv[++i]);
+        else if ((arg == "-l" || arg == "--library") && i + 1 < argc) library_file_path = argv[++i]; 
     }
-
+    
     if (input_path.empty()) {
         print_usage();
         std::_Exit(1);
@@ -59,7 +68,19 @@ int main(int argc, char* argv[]) {
     str_stream << kernel_file.rdbuf();
     std::string core_kernel = str_stream.str();
     kernel_file.close();
-
+    // 🚀 2. NEU: Optionale Math-Library einlesen (falls übergeben)
+    std::string math_library_code = "";
+    if (!library_file_path.empty()) {
+        std::ifstream lib_file(library_file_path);
+        if (lib_file.good()) {
+            std::stringstream lib_stream;
+            lib_stream << lib_file.rdbuf();
+            global_math_library_code = lib_stream.str() + "\n";
+            lib_file.close();
+        } else {
+            std::cerr << "⚠️ Warnung: Math-Library '" << library_file_path << "' konnte nicht geoeffnet werden! Fahre ohne fort.\n";
+        }
+    }
     try {
         std::vector<cl::Platform> platforms;
         cl::Platform::get(&platforms);
@@ -93,6 +114,9 @@ int main(int argc, char* argv[]) {
             prolog = "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n#define real_t double\n#define real2_t double2\n";
         }
         
+        // 🎯 DIE NATIVE WRAPPER-VERSCHMELZUNG:
+        // physx_device.compile_kernel() liest jetzt im Bauch der opencl.hpp vollautomatisch:
+        // prolog + get_opencl_c_code() (unsere Math-Lib!) + core_kernel aus!
         std::string final_kernel_code = prolog + "\n" + core_kernel;
         physx_device.set_kernel_source(final_kernel_code);
         
