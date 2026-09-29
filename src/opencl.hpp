@@ -334,6 +334,7 @@
       int device_idx = 0;
       string compiler_path;
       string compiler_binary;
+      string math_library_path;
 	  bool kernel_loaded = false;
 	  bool kernel_compiled = false;
 	  inline string enable_device_capabilities() const { return // enable FP64/FP16 capabilities if available
@@ -428,7 +429,8 @@
     this->device_idx = d_idx;
     // 🎯 UNIVERSALER PFAD-DEFAULT FÜR WINDOWS, LINUX & MACOS:
     this->compiler_path = "./";
-
+    this->math_library_path = "";
+    
 #ifdef _WIN32
     this->compiler_binary = "ocl_compiler.exe";
 #else
@@ -493,6 +495,14 @@
 	  inline string get_kernel_path(){
 	    return this->kernel_path;
 	  }
+      // 🎯 GETTER & SETTER FÜR DEINE MATHEMATISCHE ERWEITERUNG
+      inline void set_math_library_path(const std::string& path) { 
+        this->math_library_path = path; 
+      }
+      
+      inline std::string get_math_library_path() const { 
+        return this->math_library_path; 
+      }
       // 🎯 DER NEUE CACHE-GETTER: Gibt den geschützten Binärpfad nach außen frei
       inline std::string get_binary_cache_path() const {
         return this->binary_cache_path;
@@ -884,7 +894,10 @@
             " -c ./.cl_cache" + 
             " -p " + std::to_string(this->platform_idx) + 
             " -d " + std::to_string(this->device_idx);
-
+          // 🎯 JETZT AKTIVIEREN: Wenn der Pfad zur Math-Library nicht leer ist, hängen wir das -l Flag an!
+          if (!this->math_library_path.empty()) {
+              compiler_cmd += " -l " + this->math_library_path;
+          }
           std::cout << "🔄 [BACKEND-EXEC] " << compiler_cmd << std::endl << std::flush;
 
           int status = std::system(compiler_cmd.c_str());
