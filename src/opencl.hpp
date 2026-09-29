@@ -7,7 +7,7 @@
 #include <sys/stat.h>
 	#define WORKGROUP_SIZE 64 // needs to be 64 to fully use AMD GPUs
 	//#define PTX
-	//#define LOG
+	#define LOG
 
 	// https://github.com/KhronosGroup/OpenCL-Headers
 	// https://github.com/KhronosGroup/OpenCL-CLHPP
@@ -575,6 +575,15 @@
 
     compiled_code = enable_device_capabilities() + "\n" + "\n" + c_code + "\n" + kernel_code;
 
+    // =========================================================================
+    // 🚀 NEU: DER UNFEHLBARE OPENCL-C QUELLTEXT-DRUCKER (Debug-Schnittstelle)
+    // =========================================================================
+    std::cout << "\n=================== GENERATED OPENCL C CODE ===================\n" 
+              << compiled_code 
+              << "\n===============================================================\n\n" 
+              << std::flush;
+    
+      
     cl_source.push_back({ compiled_code.c_str(), compiled_code.length() });
     this->cl_program = cl::Program(info.cl_context, cl_source);
 
@@ -620,31 +629,57 @@
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
 #else
     std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 2. Starte natives cl_program.build()..." << std::endl << std::flush;
-    error = cl_program.build({ this->info.cl_device }, final_options.c_str());
+    // 🎯 DER RETTENDE CATCH-BLOCK DIREKT BEIM BUILD-AUFRUF
+    try {
+        error = cl_program.build({ this->info.cl_device }, final_options.c_str());
+    } 
+    catch (const cl::Error& build_exception) {
+        // 🚀 BINGO! Hier landen wir BEVOR das Programm flüchtet.
+        // Wir holen uns das Log unzensiert direkt über std::cout (oder std::cerr)
+        std::string raw_nvidia_log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
+        
+        std::cout << "\n=================== NATIVE OPENCL BUILD LOG (CATCH) ===================\n" 
+                  << raw_nvidia_log 
+                  << "\n========================================================================\n\n" << std::flush;
+        
+        // Jetzt werfen wir die Exception kontrolliert weiter, damit die ocl_compiler.cpp Bescheid weiß
+        throw build_exception;
+    }    
 #endif
 
     auto t_build_end = std::chrono::high_resolution_clock::now();
     std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 3. cl_program.build() beendet | Code: " << error 
 		      << " | Reine Build-Zeit: " << std::chrono::duration<double>(t_build_end - t_build_start).count() << "s" << std::endl << std::flush;
     
+    // 🎯 DER FEHLERFESTE ZWANG-DRUCKER FÜR DEINEN ORIGINAL-CODE
+    std::string hardware_log = "";
+    try {
+        hardware_log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
+    } catch(...) {
+        hardware_log = "Konnte Build-Log nicht auslesen.";
+    }
+
     if(error) {
       this->kernel_compiled = false;
-#ifndef LOG
-      print_warning(cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device));
-#else
-      const std::string log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
-      if((uint)log.length() > 2u) print_warning(log);
-#endif
-      throw std::runtime_error("OpenCL Fatal Exception -> ");
+
+      
+      // Wir werfen eine cl::Error, damit der catch-Block im ocl_compiler sie sauber fängt!
+      throw cl::Error(CL_BUILD_PROGRAM_FAILURE, "OpenCL Fatal Build Exception");
     } else {
-      print_info("OpenCL C code successfully compiled.");
       this->kernel_compiled = true;
+      
+      // 🚀 AUCH BEI SUCCESS DIREKT AUF STD::CERR AUSGEBEN (Für distance_matrix Sichtbarkeit!)
+      std::cerr << "\n=================== NATIVE OPENCL BUILD LOG (SUCCESS) ===================\n"
+                << hardware_log
+                << "\n=========================================================================\n\n" << std::flush;
     }
 
 #ifdef PTX 
     write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>());
 #endif 
   }
+    
+  
 
       //
 
