@@ -495,6 +495,12 @@
 	  inline string get_kernel_path(){
 	    return this->kernel_path;
 	  }
+	  inline void set_kernel_name(const string& kernel_name){
+	    this->kernel_name = kernel_name;
+	  }
+	  inline string get_kernel_name(){
+	    return this->kernel_name;
+	  }
       // 🎯 GETTER & SETTER FÜR DEINE MATHEMATISCHE ERWEITERUNG
       inline void set_math_library_path(const std::string& path) { 
         this->math_library_path = path; 
@@ -723,9 +729,8 @@
       };
 
       std::string filename = "kernel";
-      if (!this->kernel_path.empty()) {
-          size_t last_slash = this->kernel_path.find_last_of("/\\");
-          std::string raw_file = (last_slash == std::string::npos) ? this->kernel_path : this->kernel_path.substr(last_slash + 1);
+      if (!this->kernel_name.empty()) {
+          std::string raw_file = this->kernel_name;
           size_t last_dot = raw_file.find_last_of(".");
           filename = (last_dot == std::string::npos) ? raw_file : raw_file.substr(0, last_dot);
       }
@@ -896,12 +901,25 @@
           this->load_compiled_binary(binary_path);
       } else {
           std::cout << "⏱️ [BACKEND] Binary fehlt oder ist veraltet. Starte Standalone-Kompilierung..." << std::endl << std::flush;
+          // 🎯 SAUBERE TRENNUNG: Basis-Pfad holen und sicherstellen, dass er mit einem Slash endet
+          std::string base_dir = this->kernel_path;
+          if (!base_dir.empty() && base_dir.back() != '/' && base_dir.back() != '\\') {
+              base_dir += "/";
+          }
 
-          // Ordnerstruktur für den Cache rekursiv anlegen
+          // Falls kernel_name leer ist, nutzen wir einen sicheren Default
+          std::string k_name = this->kernel_name.empty() ? "kernel.cl" : this->kernel_name;
+
+          // 🎯 Hier werden Verzeichnis und Dateiname exakt zusammengeführt!
+          std::string source_path = base_dir + k_name;
+          std::string binary_path = this->get_binary_cache_path();
+
           std::string target_dir = binary_path.substr(0, binary_path.find_last_of("/\\"));
           native_mkdir_recursive(target_dir);
-          // 🎯 UNIVERSELLE SLASH-VERSCHMELZUNG (Windows- & Unix-Safe):
-          std::string full_compiler_cmd = this->compiler_path;
+
+          // Plattform-sichere Compiler-Befehlskette (cmd.exe safe)
+          std::string full_compiler_cmd = "";
+          
 #ifdef _WIN32
           // Wenn der Pfad unter Windows der Default "./" oder leeres Verzeichnis ist,
           // rufen wir die Exe direkt ohne Slashes auf, damit cmd.exe nicht stolpert!
