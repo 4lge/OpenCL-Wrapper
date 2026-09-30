@@ -1,81 +1,86 @@
+
+#ifndef CL_HPP_ENABLE_EXCEPTIONS
+#define CL_HPP_ENABLE_EXCEPTIONS
+#endif
+
 #include "opencl.hpp"
 
 int main() {
-try {
- get_opencl_print_enabled() = true;
-  //Device device(select_device_with_most_flops()); // compile OpenCL C code for the fastest available device
-  Device device(select_device_with_most_memory()); // compile OpenCL C code for the fastest available device
-  //Device device(select_device_with_most_flops()); // compile OpenCL C code for the fastest available device
-  
-// vector<string> kernel_files = find_files("kernels",".cl");
-//
-// for (vector<string>::iterator t=kernel_files.begin(); t!=kernel_files.end(); ++t){
-//   print_message("kernel file found: " + *t);
-// }
-//
-//
-// string add_kernel_file;
-// for (vector<string>::iterator t=kernel_files.begin(); t!=kernel_files.end(); ++t){
-//   if(equals_regex(*t,".*/add.cl")){
-//     add_kernel_file=*t;
-//     break;
-//   }
-// }
-//
-// print_message("kernel file used: >>" + add_kernel_file + "<<", "Info:");
-//
-// 
-// device.set_kernel_code(read_file(add_kernel_file));
-  device.load_kernel("kernels","add.cl");
-  device.compile_kernel();
+  try {
+    get_opencl_print_enabled() = true;
+    //Device device(select_device_with_most_flops()); // compile OpenCL C code for the fastest available device
+    Device device(select_device_with_most_memory()); // compile OpenCL C code for the fastest available device
+    //Device device(select_device_with_most_flops()); // compile OpenCL C code for the fastest available device
 
-  string code = device.get_c_code()+device.get_kernel_code();
-  // std::cout << "CL C code\n" << code << std::endl;
+    // vector<string> kernel_files = find_files("kernels",".cl");
+    //
+    // for (vector<string>::iterator t=kernel_files.begin(); t!=kernel_files.end(); ++t){
+    //   print_message("kernel file found: " + *t);
+    // }
+    //
+    //
+    // string add_kernel_file;
+    // for (vector<string>::iterator t=kernel_files.begin(); t!=kernel_files.end(); ++t){
+    //   if(equals_regex(*t,".*/add.cl")){
+    //     add_kernel_file=*t;
+    //     break;
+    //   }
+    // }
+    //
+    // print_message("kernel file used: >>" + add_kernel_file + "<<", "Info:");
+    //
+    //
+    // device.set_kernel_code(read_file(add_kernel_file));
+    device.load_kernel("kernels","add.cl");
+    device.compile_kernel();
 
-  
-  const uint N = 10u; //1024u; // size of vectors
-  Memory<float> A(device, N); // allocate memory on both host and device
-  Memory<float> B(device, N);
-  Memory<float> C(device, N);
+    string code = device.get_c_code()+device.get_kernel_code();
+    // std::cout << "CL C code\n" << code << std::endl;
 
-  Kernel add_kernel(device, N, "add_kernel", A, B, C); // kernel that runs on the device
 
-  for(uint n=0u; n<N; n++) {
-    A[n] = 3.0f; // initialize memory
-    B[n] = 2.0f;
-    C[n] = 1.0f;
-  }
+    const uint N = 10u; //1024u; // size of vectors
+    Memory<float> A(device, N); // allocate memory on both host and device
+    Memory<float> B(device, N);
+    Memory<float> C(device, N);
 
-  print_info("Value before kernel execution: C[0] = "+to_string(C[0]));
+    Kernel add_kernel(device, N, "add_kernel", A, B, C); // kernel that runs on the device
 
-  A.write_to_device(); // copy data from host memory to device memory
-  B.write_to_device();
-  add_kernel.run(); // run add_kernel on the device
-  C.read_from_device(); // copy data from device memory to host memory
+    for(uint n=0u; n<N; n++) {
+      A[n] = 3.0f; // initialize memory
+      B[n] = 2.0f;
+      C[n] = 1.0f;
+    }
 
-  print_info("Value after kernel execution: C[0] = "+to_string(C[0]));
+    print_info("Value before kernel execution: C[0] = "+to_string(C[0]));
 
-  device.load_kernel("kernels","runif.cl");
+    A.write_to_device(); // copy data from host memory to device memory
+    B.write_to_device();
+    add_kernel.run(); // run add_kernel on the device
+    C.read_from_device(); // copy data from device memory to host memory
+
+    print_info("Value after kernel execution: C[0] = "+to_string(C[0]));
+
+    device.load_kernel("kernels","runif.cl");
 #ifdef _WIN32
-  device.compile_kernel("-cl-opt-disable"); // Schaltet den Optimierer unter Windows aus
+    device.compile_kernel("-cl-opt-disable"); // Schaltet den Optimierer unter Windows aus
 #else
-  device.compile_kernel();
-#endif  
+    device.compile_kernel();
+#endif
 
-  code = device.get_c_code()+device.get_kernel_code();
-  //std::cout << "runif CL C code\n" << code << std::endl;
-  
+    code = device.get_c_code()+device.get_kernel_code();
+    //std::cout << "runif CL C code\n" << code << std::endl;
 
-  Memory<float> OutputF;(device, N);
-  Memory<double> OutputD; (device, N);
-  Memory<int> Seed(device, 1);
 
-  Seed[0]=42;
+    Memory<float> OutputF;(device, N);
+    Memory<double> OutputD; (device, N);
+    Memory<int> Seed(device, 1);
 
-  double lower = -1.0;
-  double upper = 1.0;
+    Seed[0]=42;
 
-  Kernel unif_rng;
+    double lower = -1.0;
+    double upper = 1.0;
+
+    Kernel unif_rng;
     // kernel that runs on the device
     if(device.info.is_fp64_capable){ // TODO: use float via parameter also on double device via argument.
       OutputD = Memory<double>(device, N);
@@ -86,43 +91,43 @@ try {
       // norm_rng = Kernel(device, N, "norm_rng", Memory<float>(Output), Seed, (float)mean, (float)sd);
       unif_rng = Kernel(device, N, "unif_rng", OutputF, Seed, (float)lower, (float)upper);
     }
-  
-  Seed.write_to_device(); // copy data from host memory to device memory
 
-      // run add_kernel on the device
+    Seed.write_to_device(); // copy data from host memory to device memory
+
+    // run add_kernel on the device
     unif_rng.run();
-    
-  std::cout << "r_unif <- c(";;
-    if(device.info.is_fp64_capable){ 
-      OutputD.read_from_device(); 
+
+    std::cout << "r_unif <- c(";;
+    if(device.info.is_fp64_capable){
+      OutputD.read_from_device();
       for(auto i=0; i<OutputD.length(); i++){
         std::cout << (double)OutputD[i];
         if(i<OutputF.length()-1)
-        std::cout << ", ";
+          std::cout << ", ";
       }
     } else {
       OutputF.read_from_device();
       for(auto i=0; i<OutputF.length(); i++){
         std::cout << (double)OutputF[i];
         if(i<OutputF.length()-1)
-        std::cout << ", ";
+          std::cout << ", ";
       }
     }
     std::cout << ")" << std::endl;
 
 
-    
-  device.load_kernel("kernels","rnorm.cl");
-#ifdef _WIN32
-  device.compile_kernel("-cl-opt-disable"); // Schaltet den unendlichen Optimierer unter Windows aus
-#else
-  device.compile_kernel();
-#endif
-  
-  double mean = 0.0;
-  double sd = 1.0;
 
-      Kernel norm_rng;
+    device.load_kernel("kernels","rnorm.cl");
+#ifdef _WIN32
+    device.compile_kernel("-cl-opt-disable"); // Schaltet den unendlichen Optimierer unter Windows aus
+#else
+    device.compile_kernel();
+#endif
+
+    double mean = 0.0;
+    double sd = 1.0;
+
+    Kernel norm_rng;
     // kernel that runs on the device
     if(device.info.is_fp64_capable){ // TODO: use float via parameter also on double device via argument.
       OutputD = Memory<double>(device, N);
@@ -134,26 +139,26 @@ try {
       norm_rng = Kernel(device, N, "norm_rng", OutputF, Seed, (float)mean, (float)sd);
     }
     Seed.write_to_device(); // copy data from host memory to device memory
-    
+
     // run add_kernel on the device
     norm_rng.run();
-    
+
     // copy data from device memory to host memory
-  
+
     std::cout << "r_norm <- c(";;
-    if(device.info.is_fp64_capable){ 
-      OutputD.read_from_device(); 
+    if(device.info.is_fp64_capable){
+      OutputD.read_from_device();
       for(auto i=0; i<OutputD.length(); i++){
         std::cout << (double)OutputD[i];
         if(i<OutputF.length()-1)
-        std::cout << ", ";
+          std::cout << ", ";
       }
     } else {
       OutputF.read_from_device();
       for(auto i=0; i<OutputF.length(); i++){
         std::cout << (double)OutputF[i];
         if(i<OutputF.length()-1)
-        std::cout << ", ";
+          std::cout << ", ";
       }
     }
     std::cout << ")" << std::endl;
@@ -162,54 +167,54 @@ try {
     mean=-10;
     sd=5;
     Seed.write_to_device(); // copy data from host memory to device memory
-    
+
     // run add_kernel on the device
     norm_rng.run();
-    
+
     // copy data from device memory to host memory
-  
+
     std::cout << "r_norm_second_run <- c(";;
-    if(device.info.is_fp64_capable){ 
-      OutputD.read_from_device(); 
+    if(device.info.is_fp64_capable){
+      OutputD.read_from_device();
       for(auto i=0; i<OutputD.length(); i++){
         std::cout << (double)OutputD[i];
         if(i<OutputF.length()-1)
-        std::cout << ", ";
+          std::cout << ", ";
       }
     } else {
       OutputF.read_from_device();
       for(auto i=0; i<OutputF.length(); i++){
         std::cout << (double)OutputF[i];
         if(i<OutputF.length()-1)
-        std::cout << ", ";
+          std::cout << ", ";
       }
     }
     std::cout << ")" << std::endl;
 
-  std::cout << "example runs finished." << std::endl; 
+    std::cout << "example runs finished." << std::endl;
 
-  wait();
-  return 0;
-  } 
-#ifdef CL_HPP_ENABLE_EXCEPTIONS
-  catch (const cl::Exception& e) {
-        print_error("OpenCL error: " + std::string(e.what()));
-
-        // 🚀 DER LOOKUP-TURBO: Wir jagen die Fehler-ID durch Ihr integriertes CLErrorLookup!
-        std::string detailed_error = clerror::get_error_full(e.err());
-        print_error("Details -> " + detailed_error);
-
-        return 1;
-}
-#endif
-    catch (const std::runtime_error& e) {
-        print_error("runtime error: " + std::string(e.what()));
-        return 2;
-    }
-    catch (...) {
-	print_error("unknown eroor during exception!");
-        return 3;
-    }
-
+    wait();
     return 0;
-}
+  } // 🎯 Hier schließt sich das try {, das ganz oben in der main() geöffnet wurde!
+
+#ifdef CL_HPP_ENABLE_EXCEPTIONS
+  catch (const cl::Error& e) { // 🎯 FIX: cl::Error statt cl::Exception nutzen!
+    print_error("OpenCL error: " + std::string(e.what()));
+
+    // Der integrierte Fehler-Lookup
+    //std::string detailed_error = clerror::get_error_full(e.err());
+    //print_error("Details -> " + detailed_error);
+
+    return 1;
+  }
+#endif
+  catch (const std::runtime_error& e) {
+    print_error("runtime error: " + std::string(e.what()));
+    return 2;
+  }
+  catch (...) {
+    print_error("unknown error during exception!");
+    return 3;
+  }
+
+} // 🎯 Hier schließt sich die gesamte int main() Funktion!
