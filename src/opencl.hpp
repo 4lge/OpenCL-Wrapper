@@ -7,7 +7,7 @@
 #include <sys/stat.h>
 	#define WORKGROUP_SIZE 64 // needs to be 64 to fully use AMD GPUs
 	//#define PTX
-	#define LOG
+	//#define LOG
 
 	// https://github.com/KhronosGroup/OpenCL-Headers
 	// https://github.com/KhronosGroup/OpenCL-CLHPP
@@ -17,11 +17,6 @@
 	#else // macOS
 	#define CL_HPP_TARGET_OPENCL_VERSION 120 // macOS only supports OpenCL 1.2
 	#endif // macOS
-
-#ifndef CL_HPP_ENABLE_EXCEPTIONS
-#define CL_HPP_ENABLE_EXCEPTIONS
-#endif
-
 	#include <CL/opencl.hpp>
 	#include "utilities.hpp"
 	using cl::Event;
@@ -143,13 +138,7 @@
 	    is_int8_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_CHAR>();
 	    is_cpu = cl_device.getInfo<CL_DEVICE_TYPE>()==CL_DEVICE_TYPE_CPU;
 	    is_gpu = cl_device.getInfo<CL_DEVICE_TYPE>()==CL_DEVICE_TYPE_GPU;
-        // 🎯 FIX: Verhindert den Fehler -30 (CL_INVALID_VALUE) auf modernen OpenCL 3.0 Treibern!
-        #if defined(CL_DEVICE_HOST_UNIFIED_MEMORY) && (CL_TARGET_OPENCL_VERSION < 200)
-            uses_ram = is_cpu || (bool)cl_device.getInfo<CL_DEVICE_HOST_UNIFIED_MEMORY>();
-        #else
-            // Moderne OpenCL 2.0/3.0 Treiber (wie NVIDIA) nutzen kein Unified Memory für diskrete GPUs
-            uses_ram = is_cpu; 
-        #endif        
+	    uses_ram = is_cpu||(bool)cl_device.getInfo<CL_DEVICE_HOST_UNIFIED_MEMORY>(); // CPUs or iGPUs
 	    const int vendor_id = (int)cl_device.getInfo<CL_DEVICE_VENDOR_ID>(); // AMD=0x1002, Intel=0x8086, Nvidia=0x10DE, Apple=0x1027F00
 	    uint ipc = is_gpu ? 2u : 32u; // IPC (instructions per cycle) is 2 for most GPUs and 32 for most modern CPUs
 	    float cores_per_cu = 1.0f;
@@ -506,12 +495,6 @@
 	  inline string get_kernel_path(){
 	    return this->kernel_path;
 	  }
-	  inline void set_kernel_name(const string& kernel_name){
-	    this->kernel_name = kernel_name;
-	  }
-	  inline string get_kernel_name(){
-	    return this->kernel_name;
-	  }
       // 🎯 GETTER & SETTER FÜR DEINE MATHEMATISCHE ERWEITERUNG
       inline void set_math_library_path(const std::string& path) { 
         this->math_library_path = path; 
@@ -592,15 +575,6 @@
 
     compiled_code = enable_device_capabilities() + "\n" + "\n" + c_code + "\n" + kernel_code;
 
-    // =========================================================================
-    // 🚀 NEU: DER UNFEHLBARE OPENCL-C QUELLTEXT-DRUCKER (Debug-Schnittstelle)
-    // =========================================================================
-    std::cout << "\n=================== GENERATED OPENCL C CODE ===================\n" 
-              << compiled_code 
-              << "\n===============================================================\n\n" 
-              << std::flush;
-    
-      
     cl_source.push_back({ compiled_code.c_str(), compiled_code.length() });
     this->cl_program = cl::Program(info.cl_context, cl_source);
 
@@ -646,57 +620,31 @@
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
 #else
     std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 2. Starte natives cl_program.build()..." << std::endl << std::flush;
-    // 🎯 DER RETTENDE CATCH-BLOCK DIREKT BEIM BUILD-AUFRUF
-    try {
-        error = cl_program.build({ this->info.cl_device }, final_options.c_str());
-    } 
-    catch (const cl::Error& build_exception) {
-        // 🚀 BINGO! Hier landen wir BEVOR das Programm flüchtet.
-        // Wir holen uns das Log unzensiert direkt über std::cout (oder std::cerr)
-        std::string raw_nvidia_log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
-        
-        std::cout << "\n=================== NATIVE OPENCL BUILD LOG (CATCH) ===================\n" 
-                  << raw_nvidia_log 
-                  << "\n========================================================================\n\n" << std::flush;
-        
-        // Jetzt werfen wir die Exception kontrolliert weiter, damit die ocl_compiler.cpp Bescheid weiß
-        throw build_exception;
-    }    
+    error = cl_program.build({ this->info.cl_device }, final_options.c_str());
 #endif
 
     auto t_build_end = std::chrono::high_resolution_clock::now();
     std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 3. cl_program.build() beendet | Code: " << error 
 		      << " | Reine Build-Zeit: " << std::chrono::duration<double>(t_build_end - t_build_start).count() << "s" << std::endl << std::flush;
     
-    // 🎯 DER FEHLERFESTE ZWANG-DRUCKER FÜR DEINEN ORIGINAL-CODE
-    std::string hardware_log = "";
-    try {
-        hardware_log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
-    } catch(...) {
-        hardware_log = "Konnte Build-Log nicht auslesen.";
-    }
-
     if(error) {
       this->kernel_compiled = false;
-
-      
-      // Wir werfen eine cl::Error, damit der catch-Block im ocl_compiler sie sauber fängt!
-      throw cl::Error(CL_BUILD_PROGRAM_FAILURE, "OpenCL Fatal Build Exception");
+#ifndef LOG
+      print_warning(cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device));
+#else
+      const std::string log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
+      if((uint)log.length() > 2u) print_warning(log);
+#endif
+      throw std::runtime_error("OpenCL Fatal Exception -> ");
     } else {
+      print_info("OpenCL C code successfully compiled.");
       this->kernel_compiled = true;
-      
-      // 🚀 AUCH BEI SUCCESS DIREKT AUF STD::CERR AUSGEBEN (Für distance_matrix Sichtbarkeit!)
-      std::cerr << "\n=================== NATIVE OPENCL BUILD LOG (SUCCESS) ===================\n"
-                << hardware_log
-                << "\n=========================================================================\n\n" << std::flush;
     }
 
 #ifdef PTX 
     write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>());
 #endif 
   }
-    
-  
 
       //
 
@@ -740,8 +688,9 @@
       };
 
       std::string filename = "kernel";
-      if (!this->kernel_name.empty()) {
-          std::string raw_file = this->kernel_name;
+      if (!this->kernel_path.empty()) {
+          size_t last_slash = this->kernel_path.find_last_of("/\\");
+          std::string raw_file = (last_slash == std::string::npos) ? this->kernel_path : this->kernel_path.substr(last_slash + 1);
           size_t last_dot = raw_file.find_last_of(".");
           filename = (last_dot == std::string::npos) ? raw_file : raw_file.substr(0, last_dot);
       }
@@ -912,25 +861,12 @@
           this->load_compiled_binary(binary_path);
       } else {
           std::cout << "⏱️ [BACKEND] Binary fehlt oder ist veraltet. Starte Standalone-Kompilierung..." << std::endl << std::flush;
-          // 🎯 SAUBERE TRENNUNG: Basis-Pfad holen und sicherstellen, dass er mit einem Slash endet
-          std::string base_dir = this->kernel_path;
-          if (!base_dir.empty() && base_dir.back() != '/' && base_dir.back() != '\\') {
-              base_dir += "/";
-          }
 
-          // Falls kernel_name leer ist, nutzen wir einen sicheren Default
-          std::string k_name = this->kernel_name.empty() ? "kernel.cl" : this->kernel_name;
-
-          // 🎯 Hier werden Verzeichnis und Dateiname exakt zusammengeführt!
-          std::string source_path = base_dir + k_name;
-          std::string binary_path = this->get_binary_cache_path();
-
+          // Ordnerstruktur für den Cache rekursiv anlegen
           std::string target_dir = binary_path.substr(0, binary_path.find_last_of("/\\"));
           native_mkdir_recursive(target_dir);
-
-          // Plattform-sichere Compiler-Befehlskette (cmd.exe safe)
-          std::string full_compiler_cmd = "";
-          
+          // 🎯 UNIVERSELLE SLASH-VERSCHMELZUNG (Windows- & Unix-Safe):
+          std::string full_compiler_cmd = this->compiler_path;
 #ifdef _WIN32
           // Wenn der Pfad unter Windows der Default "./" oder leeres Verzeichnis ist,
           // rufen wir die Exe direkt ohne Slashes auf, damit cmd.exe nicht stolpert!
