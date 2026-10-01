@@ -138,7 +138,13 @@
 	    is_int8_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_CHAR>();
 	    is_cpu = cl_device.getInfo<CL_DEVICE_TYPE>()==CL_DEVICE_TYPE_CPU;
 	    is_gpu = cl_device.getInfo<CL_DEVICE_TYPE>()==CL_DEVICE_TYPE_GPU;
-	    uses_ram = is_cpu||(bool)cl_device.getInfo<CL_DEVICE_HOST_UNIFIED_MEMORY>(); // CPUs or iGPUs
+        // 🎯 FIX: Verhindert den Fehler -30 (CL_INVALID_VALUE) auf modernen OpenCL 3.0 Treibern!
+        #if defined(CL_DEVICE_HOST_UNIFIED_MEMORY) && (CL_TARGET_OPENCL_VERSION < 200)
+            uses_ram = is_cpu || (bool)cl_device.getInfo<CL_DEVICE_HOST_UNIFIED_MEMORY>();
+        #else
+            // Moderne OpenCL 2.0/3.0 Treiber (wie NVIDIA) nutzen kein Unified Memory für diskrete GPUs
+            uses_ram = is_cpu; 
+        #endif        
 	    const int vendor_id = (int)cl_device.getInfo<CL_DEVICE_VENDOR_ID>(); // AMD=0x1002, Intel=0x8086, Nvidia=0x10DE, Apple=0x1027F00
 	    uint ipc = is_gpu ? 2u : 32u; // IPC (instructions per cycle) is 2 for most GPUs and 32 for most modern CPUs
 	    float cores_per_cu = 1.0f;
