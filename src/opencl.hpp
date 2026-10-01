@@ -17,6 +17,11 @@
 	#else // macOS
 	#define CL_HPP_TARGET_OPENCL_VERSION 120 // macOS only supports OpenCL 1.2
 	#endif // macOS
+
+#ifndef CL_HPP_ENABLE_EXCEPTIONS
+#define CL_HPP_ENABLE_EXCEPTIONS
+#endif
+
 	#include <CL/opencl.hpp>
 	#include "utilities.hpp"
 	using cl::Event;

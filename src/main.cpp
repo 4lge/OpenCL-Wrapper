@@ -1,8 +1,4 @@
 
-#ifndef CL_HPP_ENABLE_EXCEPTIONS
-#define CL_HPP_ENABLE_EXCEPTIONS
-#endif
-
 #include "opencl.hpp"
 
 int main() {
