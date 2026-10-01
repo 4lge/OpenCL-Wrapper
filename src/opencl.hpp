@@ -1,455 +1,470 @@
-	#pragma once
+#pragma once
 
-	#include <new>
-	#include <future>
-	#include <thread>
-	#include <chrono>
+#include <new>
+#include <future>
+#include <thread>
+#include <chrono>
 #include <sys/stat.h>
-	#define WORKGROUP_SIZE 64 // needs to be 64 to fully use AMD GPUs
-	//#define PTX
+#define WORKGROUP_SIZE 64 // needs to be 64 to fully use AMD GPUs
+//#define PTX
 #define LOG
 
-	// https://github.com/KhronosGroup/OpenCL-Headers
-	// https://github.com/KhronosGroup/OpenCL-CLHPP
-	#define CL_HPP_MINIMUM_OPENCL_VERSION 100
-	#if !defined(__APPLE__) // Windows/Linux/Android
-	#define CL_HPP_TARGET_OPENCL_VERSION 300 // Windows/Linux/Android can use OpenCL 3.0
-	#else // macOS
-	#define CL_HPP_TARGET_OPENCL_VERSION 120 // macOS only supports OpenCL 1.2
-	#endif // macOS
+// https://github.com/KhronosGroup/OpenCL-Headers
+// https://github.com/KhronosGroup/OpenCL-CLHPP
+#define CL_HPP_MINIMUM_OPENCL_VERSION 100
+#if !defined(__APPLE__) // Windows/Linux/Android
+#define CL_HPP_TARGET_OPENCL_VERSION 300 // Windows/Linux/Android can use OpenCL 3.0
+#else // macOS
+#define CL_HPP_TARGET_OPENCL_VERSION 120 // macOS only supports OpenCL 1.2
+#endif // macOS
 
 //#ifndef CL_HPP_ENABLE_EXCEPTIONS
 //#define CL_HPP_ENABLE_EXCEPTIONS
 //#endif
 
-	#include <CL/opencl.hpp>
-	#include "utilities.hpp"
-	using cl::Event;
+#include <CL/opencl.hpp>
+#include "utilities.hpp"
+using cl::Event;
 
-	static const string driver_installation_instructions =
-	#ifdef _WIN32
-	  R"(|----------------.------------------------------------------------------------'
-	|       AMD GPUs | https://www.amd.com/en/support/download/drivers.html
-	|     Intel GPUs | https://www.intel.com/content/www/us/en/download/785597/intel-arc-iris-xe-graphics-windows.html
-	|    Nvidia GPUs | https://www.nvidia.com/Download/index.aspx
-	| AMD/Intel CPUs | https://www.intel.com/content/www/us/en/developer/articles/technical/intel-cpu-runtime-for-opencl-applications-with-sycl-support.html
-	|----------------'------------------------------------------------------------.
-	| Don't forget to reboot after installation! Press Enter to exit.             |
-	'-----------------------------------------------------------------------------')""\n";
-	#else // Linux
-	string("'-----------------------------------------------------------------------------'\n")+R"(
-	)"+string("\033[31m")+R"(.-----------------------------------------------------------------------------.
-	| AMD GPU Drivers, which contain the OpenCL Runtime                           |
-	'-----------------------------------------------------------------------------'
-	sudo apt update && sudo apt upgrade -y
-	sudo apt install -y g++ git make ocl-icd-libopencl1 ocl-icd-opencl-dev
-	mkdir -p ~/amdgpu
-	wget -P ~/amdgpu https://repo.radeon.com/amdgpu-install/25.35/ubuntu/noble/amdgpu-install_7.2.70200-1_all.deb
-	sudo apt install -y ~/amdgpu/amdgpu-install*.deb
-	sudo amdgpu-install -y --usecase=graphics,rocm,opencl --opencl=rocr
-	sudo usermod -a -G render,video $(whoami)
-	rm -r ~/amdgpu
-	sudo shutdown -r now
+static const string driver_installation_instructions =
+#ifdef _WIN32
+  R"(|----------------.------------------------------------------------------------'
+    |       AMD GPUs | https://www.amd.com/en/support/download/drivers.html
+    |     Intel GPUs | https://www.intel.com/content/www/us/en/download/785597/intel-arc-iris-xe-graphics-windows.html
+    |    Nvidia GPUs | https://www.nvidia.com/Download/index.aspx
+    | AMD/Intel CPUs | https://www.intel.com/content/www/us/en/developer/articles/technical/intel-cpu-runtime-for-opencl-applications-with-sycl-support.html
+    |----------------'------------------------------------------------------------.
+    | Don't forget to reboot after installation! Press Enter to exit.             |
+    '-----------------------------------------------------------------------------')""\n";
+#else // Linux
+string("'-----------------------------------------------------------------------------'\n")+R"(
+    )"+string("\033[31m")+R"(.-----------------------------------------------------------------------------.
+    | AMD GPU Drivers, which contain the OpenCL Runtime                           |
+    '-----------------------------------------------------------------------------'
+    sudo apt update && sudo apt upgrade -y
+    sudo apt install -y g++ git make ocl-icd-libopencl1 ocl-icd-opencl-dev
+    mkdir -p ~/amdgpu
+    wget -P ~/amdgpu https://repo.radeon.com/amdgpu-install/25.35/ubuntu/noble/amdgpu-install_7.2.70200-1_all.deb
+    sudo apt install -y ~/amdgpu/amdgpu-install*.deb
+    sudo amdgpu-install -y --usecase=graphics,rocm,opencl --opencl=rocr
+    sudo usermod -a -G render,video $(whoami)
+    rm -r ~/amdgpu
+    sudo shutdown -r now
 
-	)"+string("\033[36m")+R"(.-----------------------------------------------------------------------------.
-	| Intel GPU Drivers are already installed, only the OpenCL Runtime is needed  |
-	'-----------------------------------------------------------------------------'
-	sudo apt update && sudo apt upgrade -y
-	sudo apt install -y g++ git make ocl-icd-libopencl1 ocl-icd-opencl-dev intel-opencl-icd
-	sudo usermod -a -G render $(whoami)
-	sudo shutdown -r now
+    )"+string("\033[36m")+R"(.-----------------------------------------------------------------------------.
+    | Intel GPU Drivers are already installed, only the OpenCL Runtime is needed  |
+    '-----------------------------------------------------------------------------'
+    sudo apt update && sudo apt upgrade -y
+    sudo apt install -y g++ git make ocl-icd-libopencl1 ocl-icd-opencl-dev intel-opencl-icd
+    sudo usermod -a -G render $(whoami)
+    sudo shutdown -r now
 
-	)"+string("\033[32m")+R"(.-----------------------------------------------------------------------------.
-	| Nvidia GPU Drivers, which contain the OpenCL Runtime                        |
-	'-----------------------------------------------------------------------------'
-	sudo apt update && sudo apt upgrade -y
-	sudo apt install -y g++ git make ocl-icd-libopencl1 ocl-icd-opencl-dev nvidia-driver-580
-	sudo shutdown -r now
+    )"+string("\033[32m")+R"(.-----------------------------------------------------------------------------.
+    | Nvidia GPU Drivers, which contain the OpenCL Runtime                        |
+    '-----------------------------------------------------------------------------'
+    sudo apt update && sudo apt upgrade -y
+    sudo apt install -y g++ git make ocl-icd-libopencl1 ocl-icd-opencl-dev nvidia-driver-580
+    sudo shutdown -r now
 
-	)"+string("\033[96m")+R"(.-----------------------------------------------------------------------------.
-	| CPU Option 1: Intel CPU Runtime for OpenCL (works for both AMD/Intel CPUs)  |
-	'-----------------------------------------------------------------------------'
-	export OCLV="oclcpuexp-2025.21.10.0.10_160000_rel"
-	export TBBV="oneapi-tbb-2022.3.0"
-	sudo apt update && sudo apt upgrade -y
-	sudo apt install -y g++ git make ocl-icd-libopencl1 ocl-icd-opencl-dev
-	sudo mkdir -p ~/cpurt /opt/intel/${OCLV} /etc/OpenCL/vendors /etc/ld.so.conf.d
-	sudo wget -P ~/cpurt https://github.com/intel/llvm/releases/download/2025-WW45/${OCLV}.tar.gz
-	sudo wget -P ~/cpurt https://github.com/uxlfoundation/oneTBB/releases/download/v2022.3.0/${TBBV}-lin.tgz
-	sudo tar -zxvf ~/cpurt/${OCLV}.tar.gz -C /opt/intel/${OCLV}
-	sudo tar -zxvf ~/cpurt/${TBBV}-lin.tgz -C /opt/intel
-	echo /opt/intel/${OCLV}/x64/libintelocl.so | sudo tee /etc/OpenCL/vendors/intel_expcpu.icd
-	echo /opt/intel/${OCLV}/x64 | sudo tee /etc/ld.so.conf.d/libintelopenclexp.conf
-	sudo ln -sf /opt/intel/${TBBV}/lib/intel64/gcc4.8/libtbb.so /opt/intel/${OCLV}/x64
-	sudo ln -sf /opt/intel/${TBBV}/lib/intel64/gcc4.8/libtbbmalloc.so /opt/intel/${OCLV}/x64
-	sudo ln -sf /opt/intel/${TBBV}/lib/intel64/gcc4.8/libtbb.so.12 /opt/intel/${OCLV}/x64
-	sudo ln -sf /opt/intel/${TBBV}/lib/intel64/gcc4.8/libtbbmalloc.so.2 /opt/intel/${OCLV}/x64
-	sudo ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
-	sudo rm -r ~/cpurt
+    )"+string("\033[96m")+R"(.-----------------------------------------------------------------------------.
+    | CPU Option 1: Intel CPU Runtime for OpenCL (works for both AMD/Intel CPUs)  |
+    '-----------------------------------------------------------------------------'
+    export OCLV="oclcpuexp-2025.21.10.0.10_160000_rel"
+    export TBBV="oneapi-tbb-2022.3.0"
+    sudo apt update && sudo apt upgrade -y
+    sudo apt install -y g++ git make ocl-icd-libopencl1 ocl-icd-opencl-dev
+    sudo mkdir -p ~/cpurt /opt/intel/${OCLV} /etc/OpenCL/vendors /etc/ld.so.conf.d
+    sudo wget -P ~/cpurt https://github.com/intel/llvm/releases/download/2025-WW45/${OCLV}.tar.gz
+    sudo wget -P ~/cpurt https://github.com/uxlfoundation/oneTBB/releases/download/v2022.3.0/${TBBV}-lin.tgz
+    sudo tar -zxvf ~/cpurt/${OCLV}.tar.gz -C /opt/intel/${OCLV}
+    sudo tar -zxvf ~/cpurt/${TBBV}-lin.tgz -C /opt/intel
+    echo /opt/intel/${OCLV}/x64/libintelocl.so | sudo tee /etc/OpenCL/vendors/intel_expcpu.icd
+    echo /opt/intel/${OCLV}/x64 | sudo tee /etc/ld.so.conf.d/libintelopenclexp.conf
+    sudo ln -sf /opt/intel/${TBBV}/lib/intel64/gcc4.8/libtbb.so /opt/intel/${OCLV}/x64
+    sudo ln -sf /opt/intel/${TBBV}/lib/intel64/gcc4.8/libtbbmalloc.so /opt/intel/${OCLV}/x64
+    sudo ln -sf /opt/intel/${TBBV}/lib/intel64/gcc4.8/libtbb.so.12 /opt/intel/${OCLV}/x64
+    sudo ln -sf /opt/intel/${TBBV}/lib/intel64/gcc4.8/libtbbmalloc.so.2 /opt/intel/${OCLV}/x64
+    sudo ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
+    sudo rm -r ~/cpurt
 
-	)"+string("\0933[33m")+R"(.-----------------------------------------------------------------------------.
-	| CPU Option 2: PoCL                                                          |
-	'-----------------------------------------------------------------------------'
-	sudo apt update && sudo apt upgrade -y
-	sudo apt install -y g++ git make ocl-icd-libopencl1 ocl-icd-opencl-dev pocl-opencl-icd
+    )"+string("\0933[33m")+R"(.-----------------------------------------------------------------------------.
+    | CPU Option 2: PoCL                                                          |
+    '-----------------------------------------------------------------------------'
+    sudo apt update && sudo apt upgrade -y
+    sudo apt install -y g++ git make ocl-icd-libopencl1 ocl-icd-opencl-dev pocl-opencl-icd
 
-	)"+string("\033[0m");
-	#endif // Linux
+    )"+string("\033[0m");
+#endif // Linux
 
-	struct Device_Info {
-	  cl::Device cl_device; // OpenCL device
-	  cl::Context cl_context; // multiple devices in the same context can communicate buffers
-	  uint id = 0u; // unique device ID assigned by get_devices()
-	  string name="", vendor=""; // device name, vendor
-	  string driver_version="", opencl_c_version=""; // device driver version, device OpenCL C version ("1.0", "1.1", "1.2", "2.0", "2.1", "2.2", "3.0")
-	  uint memory = 0u; // global memory in MB
-	  uint memory_used = 0u; // track global memory usage in MB
-	  uint global_cache=0u, local_cache=0u; // global cache in KB, local cache in KB
-	  uint max_global_buffer=0u, max_constant_buffer=0u; // maximum global buffer size in MB, maximum constant buffer size in KB
-	  uint compute_units = 0u; // compute units (CUs) can contain multiple cores depending on the microarchitecture
-	  uint clock_frequency = 0u; // in MHz
-	  bool is_cpu=false, is_gpu=false, uses_ram=false;
-	  uint is_fp64_capable=0u, is_fp32_capable=0u, is_fp16_capable=0u, is_int64_capable=0u, is_int32_capable=0u, is_int16_capable=0u, is_int8_capable=0u, is_dp4a_capable=0u;
-	  uint cores = 0u; // for CPUs, compute_units is the number of threads (twice the number of cores with hyperthreading)
-	  float tflops = 0.0f; // estimated device FP32 floating point performance in TeraFLOPs/s
-	  uint intel_compute_capability = 0u; // compute capability for Intel GPUs, for example intel_compute_capability=2000100 means compute capability 20.001.00
-	  uint nvidia_compute_capability = 0u; // compute capability for Nvidia GPUs, for example nvidia_compute_capability=61 means compute capability 6.1
-	  bool patch_intel_gpu_above_4gb = false; // memory allocations greater than 4GB need to be specifically enabled on Intel GPUs
-	  bool patch_nvidia_fp16 = false; // Nvidia Pascal and newer GPUs with driver>=520.00 don't report cl_khr_fp16, but do support basic FP16 arithmetic
-	  bool patch_legacy_gpu_fma = false; // some old GPUs have terrible fma performance, so replace with a*b+c
-	  inline Device_Info(const cl::Device& cl_device, const cl::Context& cl_context, const uint id) {
-	    this->cl_device = cl_device; // see https://www.khronos.org/registry/OpenCL/sdk/1.2/docs/man/xhtml/clGetDeviceInfo.html
-	    this->cl_context = cl_context;
-	    this->id = id;
-	    name = trim(cl_device.getInfo<CL_DEVICE_NAME>()); // device name
-	    vendor = trim(cl_device.getInfo<CL_DEVICE_VENDOR>()); // device vendor
-	    driver_version = trim(cl_device.getInfo<CL_DRIVER_VERSION>()); // device driver version
-	    opencl_c_version = cl_device.getInfo<CL_DEVICE_OPENCL_C_VERSION>().substr(9, 3);
-	    memory = (uint)(cl_device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>()/1048576ull); // global memory in MB
-	    global_cache = (uint)(cl_device.getInfo<CL_DEVICE_GLOBAL_MEM_CACHE_SIZE>()/1024ull); // global cache in KB
-	    local_cache = (uint)(cl_device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>()/1024ull); // local cache in KB
-	    max_global_buffer = (uint)(min(cl_device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>()/1048576ull, (ulong)memory)); // maximum global buffer size in MB
-	    max_constant_buffer = (uint)(cl_device.getInfo<CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE>()/1024ull); // maximum constant buffer size in KB
-	    compute_units = (uint)cl_device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>(); // compute units (CUs) can contain multiple cores depending on the microarchitecture
-	    clock_frequency = (uint)cl_device.getInfo<CL_DEVICE_MAX_CLOCK_FREQUENCY>(); // in MHz
-	    is_fp64_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE>()*(uint)contains(cl_device.getInfo<CL_DEVICE_EXTENSIONS>(), "cl_khr_fp64");
-	    if(is_fp64_capable==0) // also check amd flags:
-	      is_fp64_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE>()*(uint)contains(cl_device.getInfo<CL_DEVICE_EXTENSIONS>(), "cl_amd_fp64");
-	    is_fp32_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_FLOAT>();
-	    is_fp16_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_HALF>()*(uint)contains(cl_device.getInfo<CL_DEVICE_EXTENSIONS>(), "cl_khr_fp16");
-	    is_int64_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_LONG>();
-	    is_int32_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_INT>();
-	    is_int16_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_SHORT>();
-	    is_int8_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_CHAR>();
-	    is_cpu = cl_device.getInfo<CL_DEVICE_TYPE>()==CL_DEVICE_TYPE_CPU;
-	    is_gpu = cl_device.getInfo<CL_DEVICE_TYPE>()==CL_DEVICE_TYPE_GPU;
-	    uses_ram = is_cpu||(bool)cl_device.getInfo<CL_DEVICE_HOST_UNIFIED_MEMORY>(); // CPUs or iGPUs
-	    const int vendor_id = (int)cl_device.getInfo<CL_DEVICE_VENDOR_ID>(); // AMD=0x1002, Intel=0x8086, Nvidia=0x10DE, Apple=0x1027F00
-	    uint ipc = is_gpu ? 2u : 32u; // IPC (instructions per cycle) is 2 for most GPUs and 32 for most modern CPUs
-	    float cores_per_cu = 1.0f;
-	#if !defined(__APPLE__) // macOS only supports OpenCL 1.2, OpenCL extensions are missing before OpenCL 3.0
-	    uint max_opencl_c_version = 0u; // device OpenCL C version; cl_device.getInfo<CL_DEVICE_OPENCL_C_VERSION>().substr(9, 3) is unreliable as it will report 1.2 if 3.0 is available but not 2.X
-	#if !defined(_WIN32)
-	    for(auto& v : cl_device.getInfo<CL_DEVICE_OPENCL_C_ALL_VERSIONS>()) max_opencl_c_version = max(max_opencl_c_version, 10u*(uint)CL_VERSION_MAJOR(v.version)+CL_VERSION_MINOR(v.version));
-	#endif    
-	    if(max_opencl_c_version>=10u) opencl_c_version = to_string(max_opencl_c_version/10u)+"."+to_string(max_opencl_c_version%10u);
-	    is_dp4a_capable = (uint)contains(cl_device.getInfo<CL_DEVICE_EXTENSIONS>(), "cl_khr_integer_dot_product");
-	    int dp4a_error = 0;
-	    is_dp4a_capable = is_dp4a_capable&&(uint)(cl_device.getInfo<CL_DEVICE_INTEGER_DOT_PRODUCT_CAPABILITIES_KHR>(&dp4a_error)==3);
-	    is_dp4a_capable = is_dp4a_capable&&dp4a_error==0;
-	    const auto idpap = cl_device.getInfo<CL_DEVICE_INTEGER_DOT_PRODUCT_ACCELERATION_PROPERTIES_4x8BIT_PACKED_KHR>(&dp4a_error);
-	    const cl_bool* idpap_bits = (cl_bool*)&idpap; // on some unsupported devices, values are random, so only claim is_dp4a_capable if all bits are set correctly
-	    is_dp4a_capable = is_dp4a_capable&&dp4a_error==0&&idpap_bits[0]==1&&idpap_bits[1]==1&&idpap_bits[2]==1&&idpap_bits[3]==1&&idpap_bits[4]==1&&idpap_bits[5]==1;
-	    if(vendor_id==0x1002) { // AMD GPU/CPU
-	      const bool is_full_profile = trim(cl_device.getInfo<CL_DEVICE_PROFILE>())=="FULL_PROFILE"; // rusticl reports "EMBEDDED_PROFILE"
-	      const bool amd_dual_cu = is_gpu&&is_full_profile&&contains_any(to_lower(name), {"gfx10", "gfx11", "gfx12"}); // identify RDNA/RDNA2/RDNA3/RDNA4 GPUs where dual CUs are reported
-	      const bool amd_ipc_4 = is_gpu&&contains_any(to_lower(name), {"gfx11", "gfx12", "gfx942", "gfx950"}); // identify RDNA3/RDNA4 GPUs (can dual-issue float2) and CDNA3/CDNA4 GPUs (ipc=4 for scalar float)
-	      if(amd_dual_cu) compute_units *= 2u; // some AMD GPUs wrongly report the number of dual CUs as the number of CUs
-	      if(amd_ipc_4) ipc = 4u; // some AMD GPUs support dual-issuging of float2 vector type, or have ipc=4 for scalar float
-	      cores_per_cu = is_gpu ? 64.0f : 0.5f; // 64 cores/CU (GPUs), 1/2 core/CU (CPUs)
-	      const string amd_device_name = trim(cl_device.getInfo<CL_DEVICE_BOARD_NAME_AMD>());
-	      if(is_gpu&&length(amd_device_name)>0u) name = amd_device_name; // for AMD GPUs, CL_DEVICE_NAME wrongly outputs chip codename, and CL_DEVICE_BOARD_NAME_AMD outputs actual device name
-	    } else if(vendor_id==0x8086) { // Intel GPU/CPU
-	      const uint intel_device_ip_version = (uint)cl_device.getInfo<CL_DEVICE_IP_VERSION_INTEL>()&0xFFFFC03Fu; // bits 22-31: major, bits 14-21: minor, bits 0-5: revision, https://github.com/openvinotoolkit/openvino/blob/master/src/plugins/intel_gpu/src/runtime/ocl/ocl_device.cpp#L150-L158
-	      intel_compute_capability = 100000u*(intel_device_ip_version>>22)+100u*((intel_device_ip_version>>14)&0xFFu)+(intel_device_ip_version&0x3Fu); // for example 2000100 means compute capability 20.001.00, https://github.com/intel/compute-runtime/blob/master/third_party/aot_config_headers/platforms.h
-	      const bool intel_16_cores_per_cu = (intel_compute_capability>=1206000u&&intel_compute_capability<1207000u)||(intel_compute_capability>=2000000u); // (PVC/Xe2/Xe3)
-	      cores_per_cu = is_gpu ? (intel_16_cores_per_cu ? 16.0f : 8.0f) : 0.5f; // Intel GPUs have 16 cores/CU (PVC/Xe2/Xe3) or 8 cores/CU (Xe1), Intel CPUs (with HT) have 1/2 core/CU
-	      if(is_gpu&&!uses_ram) { // fix wrong global memory capacity reporting for Intel dGPUs
-	#if defined(_WIN32)
-		memory = (uint)((cl_device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>()*50ull/49ull)/1048576ull); // 98% on Windows https://github.com/intel/compute-runtime/blob/master/shared/source/os_interface/windows/wddm_memory_manager.cpp#L953
-	#elif defined(__linux__)
-		memory = (uint)((cl_device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>()*20ull/19ull)/1048576ull); // 95% on Linux   https://github.com/intel/compute-runtime/blob/master/shared/source/os_interface/linux/drm_memory_manager.cpp#L1547
-	#endif // Linux
-	      }
-	      patch_intel_gpu_above_4gb = patch_intel_gpu_above_4gb||(is_gpu&&memory>4096u); // enable memory allocations greater than 4GB for Intel GPUs with >4GB VRAM
-	      if(is_cpu) is_dp4a_capable = 0u; // native dp4a in Intel CPU Runtime for OpenCL is slower than emulated dp4a
-	    } else if(vendor_id==0x10DE||vendor_id==0x13B5) { // Nvidia GPU/CPU
-	      if(is_gpu) nvidia_compute_capability = 10u*(uint)cl_device.getInfo<CL_DEVICE_COMPUTE_CAPABILITY_MAJOR_NV>()+(uint)cl_device.getInfo<CL_DEVICE_COMPUTE_CAPABILITY_MINOR_NV>();
-	      const bool nvidia__32_cores_per_cu = (nvidia_compute_capability <30u); // identify Fermi GPUs
-	      const bool nvidia_192_cores_per_cu = (nvidia_compute_capability>=30u&&nvidia_compute_capability< 50u); // identify Kepler GPUs
-	      const bool nvidia__64_cores_per_cu = (nvidia_compute_capability>=70u&&nvidia_compute_capability<=80u)||nvidia_compute_capability==60u; // identify Volta, Turing, P100, A100, A30
-	      cores_per_cu = is_gpu ? (nvidia__32_cores_per_cu ? 32.0f : nvidia_192_cores_per_cu ? 192.0f : nvidia__64_cores_per_cu ? 64.0f : 128.0f) : 1.0f; // 32 (Fermi), 192 (Kepler), 64 (Volta, Turing, P100, A100, A30), 128 (Maxwell, Pascal, Ampere, Hopper, Ada, Blackwell) or 1 (CPUs)
-	      patch_nvidia_fp16 = patch_nvidia_fp16||(nvidia_compute_capability>=60&&atof(driver_version.substr(0, 6).c_str())>=520.00); // enable for all Nvidia Pascal or newer GPUs with driver>=520.00
-	      if(patch_nvidia_fp16) is_fp16_capable = 2u;
-	      is_dp4a_capable = (uint)(nvidia_compute_capability>=61u); // Nvidia GPUs with nvidia_compute_capability>=61 don't report dp4a support through cl_khr_integer_dot_product extension, but support it via inline PTX assembly
-	    } else
-	#endif // Windows / Linux / Android
-	      if(vendor_id==0x1027F00) { // Apple iGPU
-		cores_per_cu = 128.0f; // Apple ARM GPUs usually have 128 cores/CU
-	      } else if(vendor_id==0x1022||vendor_id==0x10006||vendor_id==0x6C636F70) { // x86 CPUs with PoCL runtime
-		cores_per_cu = 0.5f; // CPUs typically have 1/2 cores/CU due to SMT/hyperthreading
-	      } else if(contains(to_lower(vendor), "arm")) { // ARM
-		cores_per_cu = is_gpu ? 8.0f : 1.0f; // ARM GPUs usually have 8 cores/CU, ARM CPUs have 1 core/CU
-		uses_ram = false; // CL_MEM_USE_HOST_PTR is broken on ARM iGPUs, so disable zero-copy there
-		patch_legacy_gpu_fma = true; // enable for all ARM GPUs
-	      }
-	    cores = to_uint((float)compute_units*cores_per_cu); // for CPUs, compute_units is the number of threads (twice the number of cores with hyperthreading)
-	    tflops = 1E-6f*(float)cores*(float)ipc*(float)clock_frequency; // estimated device floating point performance in TeraFLOPs/s
-	  }
-	  /////
-	  inline Device_Info(const int dummy) {
-	    this->id = -1;
-	    name = trim("NULL device"); // device name
-	    vendor = trim("Nobody");
-	    opencl_c_version = "0.0";
-	    memory = 0;
-	    is_cpu = false;
-	    is_gpu = false,
-	      cores =0;
-	    tflops = 0.0;
-	  }
-	  ///// END
-	  inline Device_Info() {}; // default constructor
-	};
+struct Device_Info {
+  cl::Device cl_device; // OpenCL device
+  cl::Context cl_context; // multiple devices in the same context can communicate buffers
+  uint id = 0u; // unique device ID assigned by get_devices()
+  string name="", vendor=""; // device name, vendor
+  string driver_version="", opencl_c_version=""; // device driver version, device OpenCL C version ("1.0", "1.1", "1.2", "2.0", "2.1", "2.2", "3.0")
+  uint memory = 0u; // global memory in MB
+  uint memory_used = 0u; // track global memory usage in MB
+  uint global_cache=0u, local_cache=0u; // global cache in KB, local cache in KB
+  uint max_global_buffer=0u, max_constant_buffer=0u; // maximum global buffer size in MB, maximum constant buffer size in KB
+  uint compute_units = 0u; // compute units (CUs) can contain multiple cores depending on the microarchitecture
+  uint clock_frequency = 0u; // in MHz
+  bool is_cpu=false, is_gpu=false, uses_ram=false;
+  uint is_fp64_capable=0u, is_fp32_capable=0u, is_fp16_capable=0u, is_int64_capable=0u, is_int32_capable=0u, is_int16_capable=0u, is_int8_capable=0u, is_dp4a_capable=0u;
+  uint cores = 0u; // for CPUs, compute_units is the number of threads (twice the number of cores with hyperthreading)
+  float tflops = 0.0f; // estimated device FP32 floating point performance in TeraFLOPs/s
+  uint intel_compute_capability = 0u; // compute capability for Intel GPUs, for example intel_compute_capability=2000100 means compute capability 20.001.00
+  uint nvidia_compute_capability = 0u; // compute capability for Nvidia GPUs, for example nvidia_compute_capability=61 means compute capability 6.1
+  bool patch_intel_gpu_above_4gb = false; // memory allocations greater than 4GB need to be specifically enabled on Intel GPUs
+  bool patch_nvidia_fp16 = false; // Nvidia Pascal and newer GPUs with driver>=520.00 don't report cl_khr_fp16, but do support basic FP16 arithmetic
+  bool patch_legacy_gpu_fma = false; // some old GPUs have terrible fma performance, so replace with a*b+c
+  inline Device_Info(const cl::Device& cl_device, const cl::Context& cl_context, const uint id) {
+    this->cl_device = cl_device; // see https://www.khronos.org/registry/OpenCL/sdk/1.2/docs/man/xhtml/clGetDeviceInfo.html
+    this->cl_context = cl_context;
+    this->id = id;
+    name = trim(cl_device.getInfo<CL_DEVICE_NAME>()); // device name
+    vendor = trim(cl_device.getInfo<CL_DEVICE_VENDOR>()); // device vendor
+    driver_version = trim(cl_device.getInfo<CL_DRIVER_VERSION>()); // device driver version
+    opencl_c_version = cl_device.getInfo<CL_DEVICE_OPENCL_C_VERSION>().substr(9, 3);
+    memory = (uint)(cl_device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>()/1048576ull); // global memory in MB
+    global_cache = (uint)(cl_device.getInfo<CL_DEVICE_GLOBAL_MEM_CACHE_SIZE>()/1024ull); // global cache in KB
+    local_cache = (uint)(cl_device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>()/1024ull); // local cache in KB
+    max_global_buffer = (uint)(min(cl_device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>()/1048576ull, (ulong)memory)); // maximum global buffer size in MB
+    max_constant_buffer = (uint)(cl_device.getInfo<CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE>()/1024ull); // maximum constant buffer size in KB
+    compute_units = (uint)cl_device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>(); // compute units (CUs) can contain multiple cores depending on the microarchitecture
+    clock_frequency = (uint)cl_device.getInfo<CL_DEVICE_MAX_CLOCK_FREQUENCY>(); // in MHz
+    is_fp64_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE>()*(uint)contains(cl_device.getInfo<CL_DEVICE_EXTENSIONS>(), "cl_khr_fp64");
+    if(is_fp64_capable==0) // also check amd flags:
+      is_fp64_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE>()*(uint)contains(cl_device.getInfo<CL_DEVICE_EXTENSIONS>(), "cl_amd_fp64");
+    is_fp32_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_FLOAT>();
+    is_fp16_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_HALF>()*(uint)contains(cl_device.getInfo<CL_DEVICE_EXTENSIONS>(), "cl_khr_fp16");
+    is_int64_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_LONG>();
+    is_int32_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_INT>();
+    is_int16_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_SHORT>();
+    is_int8_capable = (uint)cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_CHAR>();
+    is_cpu = cl_device.getInfo<CL_DEVICE_TYPE>()==CL_DEVICE_TYPE_CPU;
+    is_gpu = cl_device.getInfo<CL_DEVICE_TYPE>()==CL_DEVICE_TYPE_GPU;
+    uses_ram = is_cpu||(bool)cl_device.getInfo<CL_DEVICE_HOST_UNIFIED_MEMORY>(); // CPUs or iGPUs
+    const int vendor_id = (int)cl_device.getInfo<CL_DEVICE_VENDOR_ID>(); // AMD=0x1002, Intel=0x8086, Nvidia=0x10DE, Apple=0x1027F00
+    uint ipc = is_gpu ? 2u : 32u; // IPC (instructions per cycle) is 2 for most GPUs and 32 for most modern CPUs
+    float cores_per_cu = 1.0f;
+#if !defined(__APPLE__) // macOS only supports OpenCL 1.2, OpenCL extensions are missing before OpenCL 3.0
+    uint max_opencl_c_version = 0u; // device OpenCL C version; cl_device.getInfo<CL_DEVICE_OPENCL_C_VERSION>().substr(9, 3) is unreliable as it will report 1.2 if 3.0 is available but not 2.X
+#if !defined(_WIN32)
+    for(auto& v : cl_device.getInfo<CL_DEVICE_OPENCL_C_ALL_VERSIONS>()) max_opencl_c_version = max(max_opencl_c_version, 10u*(uint)CL_VERSION_MAJOR(v.version)+CL_VERSION_MINOR(v.version));
+#endif
+    if(max_opencl_c_version>=10u) opencl_c_version = to_string(max_opencl_c_version/10u)+"."+to_string(max_opencl_c_version%10u);
+    is_dp4a_capable = (uint)contains(cl_device.getInfo<CL_DEVICE_EXTENSIONS>(), "cl_khr_integer_dot_product");
+    int dp4a_error = 0;
+    is_dp4a_capable = is_dp4a_capable&&(uint)(cl_device.getInfo<CL_DEVICE_INTEGER_DOT_PRODUCT_CAPABILITIES_KHR>(&dp4a_error)==3);
+    is_dp4a_capable = is_dp4a_capable&&dp4a_error==0;
+    const auto idpap = cl_device.getInfo<CL_DEVICE_INTEGER_DOT_PRODUCT_ACCELERATION_PROPERTIES_4x8BIT_PACKED_KHR>(&dp4a_error);
+    const cl_bool* idpap_bits = (cl_bool*)&idpap; // on some unsupported devices, values are random, so only claim is_dp4a_capable if all bits are set correctly
+    is_dp4a_capable = is_dp4a_capable&&dp4a_error==0&&idpap_bits[0]==1&&idpap_bits[1]==1&&idpap_bits[2]==1&&idpap_bits[3]==1&&idpap_bits[4]==1&&idpap_bits[5]==1;
+    if(vendor_id==0x1002) { // AMD GPU/CPU
+      const bool is_full_profile = trim(cl_device.getInfo<CL_DEVICE_PROFILE>())=="FULL_PROFILE"; // rusticl reports "EMBEDDED_PROFILE"
+      const bool amd_dual_cu = is_gpu&&is_full_profile&&contains_any(to_lower(name), {"gfx10", "gfx11", "gfx12"}); // identify RDNA/RDNA2/RDNA3/RDNA4 GPUs where dual CUs are reported
+      const bool amd_ipc_4 = is_gpu&&contains_any(to_lower(name), {"gfx11", "gfx12", "gfx942", "gfx950"}); // identify RDNA3/RDNA4 GPUs (can dual-issue float2) and CDNA3/CDNA4 GPUs (ipc=4 for scalar float)
+      if(amd_dual_cu) compute_units *= 2u; // some AMD GPUs wrongly report the number of dual CUs as the number of CUs
+      if(amd_ipc_4) ipc = 4u; // some AMD GPUs support dual-issuging of float2 vector type, or have ipc=4 for scalar float
+      cores_per_cu = is_gpu ? 64.0f : 0.5f; // 64 cores/CU (GPUs), 1/2 core/CU (CPUs)
+      const string amd_device_name = trim(cl_device.getInfo<CL_DEVICE_BOARD_NAME_AMD>());
+      if(is_gpu&&length(amd_device_name)>0u) name = amd_device_name; // for AMD GPUs, CL_DEVICE_NAME wrongly outputs chip codename, and CL_DEVICE_BOARD_NAME_AMD outputs actual device name
+    } else if(vendor_id==0x8086) { // Intel GPU/CPU
+      const uint intel_device_ip_version = (uint)cl_device.getInfo<CL_DEVICE_IP_VERSION_INTEL>()&0xFFFFC03Fu; // bits 22-31: major, bits 14-21: minor, bits 0-5: revision, https://github.com/openvinotoolkit/openvino/blob/master/src/plugins/intel_gpu/src/runtime/ocl/ocl_device.cpp#L150-L158
+      intel_compute_capability = 100000u*(intel_device_ip_version>>22)+100u*((intel_device_ip_version>>14)&0xFFu)+(intel_device_ip_version&0x3Fu); // for example 2000100 means compute capability 20.001.00, https://github.com/intel/compute-runtime/blob/master/third_party/aot_config_headers/platforms.h
+      const bool intel_16_cores_per_cu = (intel_compute_capability>=1206000u&&intel_compute_capability<1207000u)||(intel_compute_capability>=2000000u); // (PVC/Xe2/Xe3)
+      cores_per_cu = is_gpu ? (intel_16_cores_per_cu ? 16.0f : 8.0f) : 0.5f; // Intel GPUs have 16 cores/CU (PVC/Xe2/Xe3) or 8 cores/CU (Xe1), Intel CPUs (with HT) have 1/2 core/CU
+      if(is_gpu&&!uses_ram) { // fix wrong global memory capacity reporting for Intel dGPUs
+#if defined(_WIN32)
+        memory = (uint)((cl_device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>()*50ull/49ull)/1048576ull); // 98% on Windows https://github.com/intel/compute-runtime/blob/master/shared/source/os_interface/windows/wddm_memory_manager.cpp#L953
+#elif defined(__linux__)
+        memory = (uint)((cl_device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>()*20ull/19ull)/1048576ull); // 95% on Linux   https://github.com/intel/compute-runtime/blob/master/shared/source/os_interface/linux/drm_memory_manager.cpp#L1547
+#endif // Linux
+      }
+      patch_intel_gpu_above_4gb = patch_intel_gpu_above_4gb||(is_gpu&&memory>4096u); // enable memory allocations greater than 4GB for Intel GPUs with >4GB VRAM
+      if(is_cpu) is_dp4a_capable = 0u; // native dp4a in Intel CPU Runtime for OpenCL is slower than emulated dp4a
+    } else if(vendor_id==0x10DE||vendor_id==0x13B5) { // Nvidia GPU/CPU
+      if(is_gpu) nvidia_compute_capability = 10u*(uint)cl_device.getInfo<CL_DEVICE_COMPUTE_CAPABILITY_MAJOR_NV>()+(uint)cl_device.getInfo<CL_DEVICE_COMPUTE_CAPABILITY_MINOR_NV>();
+      const bool nvidia__32_cores_per_cu = (nvidia_compute_capability <30u); // identify Fermi GPUs
+      const bool nvidia_192_cores_per_cu = (nvidia_compute_capability>=30u&&nvidia_compute_capability< 50u); // identify Kepler GPUs
+      const bool nvidia__64_cores_per_cu = (nvidia_compute_capability>=70u&&nvidia_compute_capability<=80u)||nvidia_compute_capability==60u; // identify Volta, Turing, P100, A100, A30
+      cores_per_cu = is_gpu ? (nvidia__32_cores_per_cu ? 32.0f : nvidia_192_cores_per_cu ? 192.0f : nvidia__64_cores_per_cu ? 64.0f : 128.0f) : 1.0f; // 32 (Fermi), 192 (Kepler), 64 (Volta, Turing, P100, A100, A30), 128 (Maxwell, Pascal, Ampere, Hopper, Ada, Blackwell) or 1 (CPUs)
+      patch_nvidia_fp16 = patch_nvidia_fp16||(nvidia_compute_capability>=60&&atof(driver_version.substr(0, 6).c_str())>=520.00); // enable for all Nvidia Pascal or newer GPUs with driver>=520.00
+      if(patch_nvidia_fp16) is_fp16_capable = 2u;
+      is_dp4a_capable = (uint)(nvidia_compute_capability>=61u); // Nvidia GPUs with nvidia_compute_capability>=61 don't report dp4a support through cl_khr_integer_dot_product extension, but support it via inline PTX assembly
+    } else
+#endif // Windows / Linux / Android
+      if(vendor_id==0x1027F00) { // Apple iGPU
+        cores_per_cu = 128.0f; // Apple ARM GPUs usually have 128 cores/CU
+      } else if(vendor_id==0x1022||vendor_id==0x10006||vendor_id==0x6C636F70) { // x86 CPUs with PoCL runtime
+        cores_per_cu = 0.5f; // CPUs typically have 1/2 cores/CU due to SMT/hyperthreading
+      } else if(contains(to_lower(vendor), "arm")) { // ARM
+        cores_per_cu = is_gpu ? 8.0f : 1.0f; // ARM GPUs usually have 8 cores/CU, ARM CPUs have 1 core/CU
+        uses_ram = false; // CL_MEM_USE_HOST_PTR is broken on ARM iGPUs, so disable zero-copy there
+        patch_legacy_gpu_fma = true; // enable for all ARM GPUs
+      }
+    cores = to_uint((float)compute_units*cores_per_cu); // for CPUs, compute_units is the number of threads (twice the number of cores with hyperthreading)
+    tflops = 1E-6f*(float)cores*(float)ipc*(float)clock_frequency; // estimated device floating point performance in TeraFLOPs/s
+  }
+  /////
+  inline Device_Info(const int dummy) {
+    this->id = -1;
+    name = trim("NULL device"); // device name
+    vendor = trim("Nobody");
+    opencl_c_version = "0.0";
+    memory = 0;
+    is_cpu = false;
+    is_gpu = false,
+      cores =0;
+    tflops = 0.0;
+  }
+  ///// END
+  inline Device_Info() {}; // default constructor
+};
 
-	string get_opencl_c_code(); // implemented in kernel.hpp
-	inline void print_device_info(const Device_Info& d) { // print OpenCL device info
-	#if defined(_WIN32)
-	  const string os = "Windows";
-	#elif defined(__linux__)
-	  const string os = "Linux";
-	#elif defined(__APPLE__)
-	  const string os = "macOS";
-	#else // unknown operating system
-	  const string os = "unknown operating system";
-	#endif // operating system
-	  println("\r|----------------.------------------------------------------------------------|");
-	  println("| Device ID      | "+alignl(58, to_string(d.id)                             )+" |");
-	  println("| Device Name    | "+alignl(58, d.name                                      )+" |");
-	  println("| Device Vendor  | "+alignl(58, d.vendor                                    )+" |");
-	  println("| Device Driver  | "+alignl(58, d.driver_version+" ("+os+")"                )+" |");
-	  println("| OpenCL Version | "+alignl(58, "OpenCL C "+d.opencl_c_version              )+" |");
-	  println("| Compute Units  | "+alignl(58, to_string(d.compute_units)+" at "+to_string(d.clock_frequency)+" MHz ("+to_string(d.cores)+" cores, "+to_string(d.tflops, 3)+" TFLOPs/s)")+" |");
-	  println("| Memory, Cache  | "+alignl(58, to_string(d.memory)+" MB "+(d.uses_ram ? "" : "V")+"RAM, "+to_string(d.global_cache)+" KB global / "+to_string(d.local_cache)+" KB local")+" |");
-	  println("| Buffer Limits  | "+alignl(58, to_string(d.max_global_buffer)+" MB global, "+to_string(d.max_constant_buffer)+" KB constant")+" |");
-	  println("| Double Width   | "+alignl(58, to_string(d.cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE>()))+" |");
-	  println("| Device Extens.                                                              |");
-	  print_info(to_string(d.cl_device.getInfo<CL_DEVICE_EXTENSIONS>()));
-	  println("| FP64 capable   | "+alignl(58, to_string(d.is_fp64_capable))+" |");
-	  println("|----------------'------------------------------------------------------------|");
-	}
-	inline vector<Device_Info> get_devices(const bool print_info=true) { // returns a vector of all available OpenCL devices
-	  set_environment_variable((char*)"GPU_SINGLE_ALLOC_PERCENT=100"); // fix maximum buffer allocation size limit for AMD GPUs
-	  set_environment_variable((char*)"CL_CONFIG_CPU_FORCE_MAX_MEM_ALLOC_SIZE=17179869183GB"); // fix maximum buffer allocation size limit in Intel CPU Runtime for OpenCL, 2^34-1 is max non-overflowing value
-	  vector<Device_Info> devices; // get all devices of all platforms
-	  vector<cl::Platform> cl_platforms; // get all platforms (drivers)
-	  cl::Platform::get(&cl_platforms);
-	  uint id = 0u;
-	  for(uint i=0u; i<(uint)cl_platforms.size(); i++) {
-	    vector<cl::Device> cl_devices;
-	    cl_platforms[i].getDevices(CL_DEVICE_TYPE_ALL, &cl_devices);
-	    //cl::Context cl_context(cl_devices); // same cl::Context for all devices (allocates extra VRAM on all other unused Nvidia GPUs)
-	    for(uint j=0u; j<(uint)cl_devices.size(); j++) {
-	      cl::Context cl_context(cl_devices[j]); // separate cl::Context for each device
-	      devices.push_back(Device_Info(cl_devices[j], cl_context, id++));
-	    }
-	  }
-	  if((uint)cl_platforms.size()==0u||(uint)devices.size()==0u) {
-	    print_message("No OpenCL devices are available. Please install the drivers for your GPU(s) and/or the CPU Runtime for OpenCL. Instructions:", "Error", 12);
-	    print(driver_installation_instructions);
-	#ifdef _WIN32
-	    wait();
-	#endif // Windows
-	    return devices;
-	  }
-	  if(print_info) {
-	    println("\r|----------------.------------------------------------------------------------|");
-	    for(uint i=0u; i<(uint)devices.size(); i++) println("| Device ID "+alignr(4u, i)+" | "+alignl(58u, devices[i].name)+" |");
-	    println("|----------------'------------------------------------------------------------|");
-	  }
-	  return devices;
-	}
-	inline Device_Info select_device_with_most_flops(const vector<Device_Info>& devices=get_devices()) { // returns device with best floating-point performance
-	  float best_value = 0.0f;
-	  uint best_i = 0u;
-	  if(devices.size()>0){
-	    for(uint i=0u; i<(uint)devices.size(); i++) { // find device with highest (estimated) floating point performance
-	      if(devices[i].tflops>best_value) {
-		best_value = devices[i].tflops;
-		best_i = i;
-	      }
-	    }
-	    return devices[best_i];
-	  } else {
-	    return Device_Info(-1);
-	  }
-	}
-	inline Device_Info select_device_with_most_memory(const vector<Device_Info>& devices=get_devices()) { // returns device with largest memory capacity
-	  uint best_value = 0u;
-	  uint best_i = 0u;
-	  if(devices.size()>0){
-	    for(uint i=0u; i<(uint)devices.size(); i++) { // find device with most memory
-	      if(devices[i].memory>best_value) {
-		best_value = devices[i].memory;
-		best_i = i;
-	      }
-	    }
-	    return devices[best_i];
-	  } else {
-	    return Device_Info(-1);
-	  }
-	}
-	inline Device_Info select_device_with_id(const uint id, const vector<Device_Info>& devices=get_devices()) { // returns device with specified ID
-	  if(devices.size()>0){
-	    if(id<(uint)devices.size() && id>=0) {
-	      return devices[id];
-	    } else {
-	      print_warning("Your selected Device ID ("+to_string(id)+") is wrong.");
-	      return devices[0]; // is never executed, just to avoid compiler warnings
-	    }
-	  } else {
-	    return Device_Info(-1);
+string get_opencl_c_code(); // implemented in kernel.hpp
+inline void print_device_info(const Device_Info& d) { // print OpenCL device info
+#if defined(_WIN32)
+  const string os = "Windows";
+#elif defined(__linux__)
+  const string os = "Linux";
+#elif defined(__APPLE__)
+  const string os = "macOS";
+#else // unknown operating system
+  const string os = "unknown operating system";
+#endif // operating system
+  println("\r|----------------.------------------------------------------------------------|");
+  println("| Device ID      | "+alignl(58, to_string(d.id)                             )+" |");
+  println("| Device Name    | "+alignl(58, d.name                                      )+" |");
+  println("| Device Vendor  | "+alignl(58, d.vendor                                    )+" |");
+  println("| Device Driver  | "+alignl(58, d.driver_version+" ("+os+")"                )+" |");
+  println("| OpenCL Version | "+alignl(58, "OpenCL C "+d.opencl_c_version              )+" |");
+  println("| Compute Units  | "+alignl(58, to_string(d.compute_units)+" at "+to_string(d.clock_frequency)+" MHz ("+to_string(d.cores)+" cores, "+to_string(d.tflops, 3)+" TFLOPs/s)")+" |");
+  println("| Memory, Cache  | "+alignl(58, to_string(d.memory)+" MB "+(d.uses_ram ? "" : "V")+"RAM, "+to_string(d.global_cache)+" KB global / "+to_string(d.local_cache)+" KB local")+" |");
+  println("| Buffer Limits  | "+alignl(58, to_string(d.max_global_buffer)+" MB global, "+to_string(d.max_constant_buffer)+" KB constant")+" |");
+  println("| Double Width   | "+alignl(58, to_string(d.cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE>()))+" |");
+  println("| Device Extens.                                                              |");
+  print_info(to_string(d.cl_device.getInfo<CL_DEVICE_EXTENSIONS>()));
+  println("| FP64 capable   | "+alignl(58, to_string(d.is_fp64_capable))+" |");
+  println("|----------------'------------------------------------------------------------|");
+}
+inline vector<Device_Info> get_devices(const bool print_info=true) { // returns a vector of all available OpenCL devices
+  set_environment_variable((char*)"GPU_SINGLE_ALLOC_PERCENT=100"); // fix maximum buffer allocation size limit for AMD GPUs
+  set_environment_variable((char*)"CL_CONFIG_CPU_FORCE_MAX_MEM_ALLOC_SIZE=17179869183GB"); // fix maximum buffer allocation size limit in Intel CPU Runtime for OpenCL, 2^34-1 is max non-overflowing value
+  vector<Device_Info> devices; // get all devices of all platforms
+  vector<cl::Platform> cl_platforms; // get all platforms (drivers)
+  cl::Platform::get(&cl_platforms);
+  uint id = 0u;
+  for(uint i=0u; i<(uint)cl_platforms.size(); i++) {
+    vector<cl::Device> cl_devices;
+    cl_platforms[i].getDevices(CL_DEVICE_TYPE_ALL, &cl_devices);
+    //cl::Context cl_context(cl_devices); // same cl::Context for all devices (allocates extra VRAM on all other unused Nvidia GPUs)
+    for(uint j=0u; j<(uint)cl_devices.size(); j++) {
+      cl::Context cl_context(cl_devices[j]); // separate cl::Context for each device
+      devices.push_back(Device_Info(cl_devices[j], cl_context, id++));
+    }
+  }
+  if((uint)cl_platforms.size()==0u||(uint)devices.size()==0u) {
+    print_message("No OpenCL devices are available. Please install the drivers for your GPU(s) and/or the CPU Runtime for OpenCL. Instructions:", "Error", 12);
+    print(driver_installation_instructions);
+#ifdef _WIN32
+    wait();
+#endif // Windows
+    return devices;
+  }
+  if(print_info) {
+    println("\r|----------------.------------------------------------------------------------|");
+    for(uint i=0u; i<(uint)devices.size(); i++) println("| Device ID "+alignr(4u, i)+" | "+alignl(58u, devices[i].name)+" |");
+    println("|----------------'------------------------------------------------------------|");
+  }
+  return devices;
+}
+inline Device_Info select_device_with_most_flops(const vector<Device_Info>& devices=get_devices()) { // returns device with best floating-point performance
+  float best_value = 0.0f;
+  uint best_i = 0u;
+  if(devices.size()>0){
+    for(uint i=0u; i<(uint)devices.size(); i++) { // find device with highest (estimated) floating point performance
+      if(devices[i].tflops>best_value) {
+        best_value = devices[i].tflops;
+        best_i = i;
+      }
+    }
+    return devices[best_i];
+  } else {
+    return Device_Info(-1);
+  }
+}
+inline Device_Info select_device_with_most_memory(const vector<Device_Info>& devices=get_devices()) { // returns device with largest memory capacity
+  uint best_value = 0u;
+  uint best_i = 0u;
+  if(devices.size()>0){
+    for(uint i=0u; i<(uint)devices.size(); i++) { // find device with most memory
+      if(devices[i].memory>best_value) {
+        best_value = devices[i].memory;
+        best_i = i;
+      }
+    }
+    return devices[best_i];
+  } else {
+    return Device_Info(-1);
+  }
+}
+inline Device_Info select_device_with_id(const uint id, const vector<Device_Info>& devices=get_devices()) { // returns device with specified ID
+  if(devices.size()>0){
+    if(id<(uint)devices.size() && id>=0) {
+      return devices[id];
+    } else {
+      print_warning("Your selected Device ID ("+to_string(id)+") is wrong.");
+      return devices[0]; // is never executed, just to avoid compiler warnings
+    }
+  } else {
+    return Device_Info(-1);
 
-	  }
-	}
+  }
+}
 
-	class Device {
-	private:
-	  cl::Program cl_program;
-	  cl::CommandQueue cl_queue;
-	  bool exists = false;
-	  string c_code;
-	  string kernel_code;
-	  string compiled_code;
-	  string kernel_file;
-	  string kernel_name;
-	  string kernel_path;
-      string binary_cache_path;
-      int platform_idx = 0;
-      int device_idx = 0;
-      string compiler_path;
-      string compiler_binary;
-      string math_library_path;
-	  bool kernel_loaded = false;
-	  bool kernel_compiled = false;
-	  inline string enable_device_capabilities() const { return // enable FP64/FP16 capabilities if available
-	      string(info.patch_nvidia_fp16         ? "\n #define cl_khr_fp16"                : "")+ // Nvidia Pascal and newer GPUs with driver>=520.00 don't report cl_khr_fp16, but do support basic FP16 arithmetic
-	      string(info.is_fp64_capable           ? "\n typedef double real_t;"                : "\n typedef float real_t;")+ // prepare float/double abstraction
-	      string(info.is_fp64_capable           ? "\n typedef double2 real2_t;"                : "\n typedef float2 real2_t;")+
-	      string(info.is_fp64_capable           ? "\n typedef double3 real3_t;"                : "\n typedef float3 real3_t;")+
-	      string(info.is_fp64_capable           ? "\n typedef double4 real4_t;"                : "\n typedef float4 real4_t;")+
-	      string(info.is_fp64_capable           ? "\n typedef double8 real8_t;"                : "\n typedef float8 real8_t;")+
-	      string(info.patch_legacy_gpu_fma      ? "\n #define fma(a, b, c) ((a)*(b)+(c))" : "")+ // some old GPUs have terrible fma performance, so replace with a*b+c
-	      string(info.intel_compute_capability  ? "\n #define cl_intel_compute_capability "+to_string(info.intel_compute_capability) : "")+ // allows querying Intel compute capability
-	      string(info.nvidia_compute_capability ? "\n #define cl_nv_compute_capability "+to_string(info.nvidia_compute_capability) : "")+ // allows querying Nvidia compute capability for inline PTX
-	      string(info.is_dp4a_capable==0u       ? "\n #undef __opencl_c_integer_dot_product_input_4x8bit\n #undef __opencl_c_integer_dot_product_input_4x8bit_packed" : "")+ // patch false dp4a reporting on Intel
-	      "\n #define cl_workgroup_size "+to_string(WORKGROUP_SIZE)+"u"
-	      "\n #ifdef cl_khr_fp64"
-	      "\n #pragma OPENCL EXTENSION cl_khr_fp64 : enable" // make sure cl_khr_fp64 extension is enabled
-	      "\n #endif"
-	      "\n #ifdef cl_khr_fp16"
-	      "\n #pragma OPENCL EXTENSION cl_khr_fp16 : enable" // make sure cl_khr_fp16 extension is enabled
-	      "\n #endif"
-	      "\n #ifdef cl_khr_int64_base_atomics"
-	      "\n #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable" // make sure cl_khr_int64_base_atomics extension is enabled
-	      "\n #endif"
-	      ;}
-	public:
-	  // 🚀 DER NATIVE HARDWARE-TRANSFORMATOR (Nutzt Placement New)
-	  inline void initialize_hardware(const Device_Info& info) {
-	    // 1. Falls das Gerät schon aktiv war, rufen wir den Destruktor auf,
-	    // um alte Kontext- und Queue-Ressourcen der vorherigen Karte sauber freizugeben.
-	    if (this->exists) {
-	      this->~Device();
-	    }
+class Device {
+private:
+  cl::Program cl_program;
+  cl::CommandQueue cl_queue;
+  bool exists = false;
+  string c_code;
+  string kernel_code;
+  string compiled_code;
+  string kernel_file;
+  string kernel_name;
+  string kernel_path;
+  string binary_cache_path;
+  int platform_idx = 0;
+  int device_idx = 0;
+  string compiler_path;
+  string compiler_binary;
+  string math_library_path;
+  bool kernel_loaded = false;
+  bool kernel_compiled = false;
+  inline string enable_device_capabilities() const { return // enable FP64/FP16 capabilities if available
+      string(info.patch_nvidia_fp16         ? "\n #define cl_khr_fp16"                : "")+ // Nvidia Pascal and newer GPUs with driver>=520.00 don't report cl_khr_fp16, but do support basic FP16 arithmetic
+      string(info.is_fp64_capable           ? "\n typedef double real_t;"                : "\n typedef float real_t;")+ // prepare float/double abstraction
+      string(info.is_fp64_capable           ? "\n typedef double2 real2_t;"                : "\n typedef float2 real2_t;")+
+      string(info.is_fp64_capable           ? "\n typedef double3 real3_t;"                : "\n typedef float3 real3_t;")+
+      string(info.is_fp64_capable           ? "\n typedef double4 real4_t;"                : "\n typedef float4 real4_t;")+
+      string(info.is_fp64_capable           ? "\n typedef double8 real8_t;"                : "\n typedef float8 real8_t;")+
+      string(info.patch_legacy_gpu_fma      ? "\n #define fma(a, b, c) ((a)*(b)+(c))" : "")+ // some old GPUs have terrible fma performance, so replace with a*b+c
+      string(info.intel_compute_capability  ? "\n #define cl_intel_compute_capability "+to_string(info.intel_compute_capability) : "")+ // allows querying Intel compute capability
+      string(info.nvidia_compute_capability ? "\n #define cl_nv_compute_capability "+to_string(info.nvidia_compute_capability) : "")+ // allows querying Nvidia compute capability for inline PTX
+      string(info.is_dp4a_capable==0u       ? "\n #undef __opencl_c_integer_dot_product_input_4x8bit\n #undef __opencl_c_integer_dot_product_input_4x8bit_packed" : "")+ // patch false dp4a reporting on Intel
+      "\n #define cl_workgroup_size "+to_string(WORKGROUP_SIZE)+"u"
+      "\n #ifdef cl_khr_fp64"
+      "\n #pragma OPENCL EXTENSION cl_khr_fp64 : enable" // make sure cl_khr_fp64 extension is enabled
+      "\n #endif"
+      "\n #ifdef cl_khr_fp16"
+      "\n #pragma OPENCL EXTENSION cl_khr_fp16 : enable" // make sure cl_khr_fp16 extension is enabled
+      "\n #endif"
+      "\n #ifdef cl_khr_int64_base_atomics"
+      "\n #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable" // make sure cl_khr_int64_base_atomics extension is enabled
+      "\n #endif"
+      ;}
+public:
+  // 🚀 DER NATIVE HARDWARE-TRANSFORMATOR (Nutzt Placement New)
+  inline void initialize_hardware(const Device_Info& info) {
+    // 1. Falls das Gerät schon aktiv war, rufen wir den Destruktor auf,
+    // um alte Kontext- und Queue-Ressourcen der vorherigen Karte sauber freizugeben.
+    if (this->exists) {
+      this->~Device();
+    }
 
-	    // 2. ⚡ PLACEMENT NEW: Wir führen Ihren großen, originalen Konstruktor
-	    // haargenau auf der Speicheradresse von "this" (dem globalen Singleton) neu aus!
-	    new (this) Device(info);
+    // 2. ⚡ PLACEMENT NEW: Wir führen Ihren großen, originalen Konstruktor
+    // haargenau auf der Speicheradresse von "this" (dem globalen Singleton) neu aus!
+    new (this) Device(info);
 
-	    // 3. Cache-Flags für das neue Gerät sicher zurücksetzen
-	    this->kernel_compiled = false;
-	    this->c_code = "";
-	  }
-	  Device_Info info;
-	  inline Device(const Device_Info& info, const string& opencl_c_code=get_opencl_c_code()) {
-	    print_device_info(info);
-	    this->info = info;
-	    this->c_code = "";
-	#ifdef _WIN32
-	    // Zwingt den NVIDIA-Treiber unter Windows im R-Thread zu strikt synchronem
-	    // In-Order-Verhalten, wodurch der asynchrone Kernel-Lock physikalisch unmöglich wird!
-	    cl_int err = CL_SUCCESS;
-	    cl_command_queue_properties properties = CL_QUEUE_PROFILING_ENABLE;
-	    this->cl_queue = cl::CommandQueue(info.cl_context, info.cl_device,properties, &err ); // queue to push commands for the device
-	    // Optionale Sicherheitsprüfung (falls gewünscht)
-	    if (err != CL_SUCCESS) {
-	      print_error("Fehler beim Erstellen der synchronen CommandQueue unter Windows: " + to_string((int)err));
-	    }
-	#else
-	    // Linux und macOS nutzen weiterhin das Standard-Verhalten
-	    this->cl_queue = cl::CommandQueue(info.cl_context, info.cl_device); // queue to push commands for the device
-	#endif
-	    // this->compile_kernel();
-	    /*
-	      cl::Program::Sources cl_source;
-	      const string kernel_code = enable_device_capabilities()+"\n"+opencl_c_code;
-	      cl_source.push_back({ kernel_code.c_str(), kernel_code.length() });
-	      this->cl_program = cl::Program(info.cl_context, cl_source);
-	      const string build_options = "-cl-std=CL"+info.opencl_c_version+" -cl-finite-math-only -cl-no-signed-zeros -cl-mad-enable"+(info.patch_intel_gpu_above_4gb ? " -cl-intel-greater-than-4GB-buffer-required" : "");
-	      #ifndef LOG
-	      int error = cl_program.build({ info.cl_device }, (build_options+" -w").c_str()); // compile OpenCL C code, disable warnings
-	      if(error) print_warning(cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device)); // print build log
-	      #else // LOG, generate logfile for OpenCL code compilation
-	      int error = cl_program.build({ info.cl_device }, build_options.c_str()); // compile OpenCL C code
-	      const string log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
-	      write_file("bin/kernel.log", log); // save build log
-	      if((uint)log.length()>2u) print_warning(log); // print build log
-	      #endif // LOG
-	      if(error) print_error("OpenCL C code compilation failed with error code "+to_string(error)+". Make sure there are no errors in kernel.cpp.");
-	      else print_info("OpenCL C code successfully compiled.");
-	      #ifdef PTX // generate assembly (ptx) file for OpenCL code
-	      write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>()[0][0]); // save binary (ptx file)
-	      #endif // PTX
-	    */
-	    this->exists = true;
-	  }
-      // 🚀 DER DEFINITIVE WINDOWS- & LINUX-RETTUNGSTRACK FÜR DEINEN FORK:
-      inline Device(cl_context ext_context, cl_device_id ext_device, cl_command_queue ext_queue, int p_idx = 0, int d_idx = 0) {
-        
-        this->exists = true;
+    // 3. Cache-Flags für das neue Gerät sicher zurücksetzen
+    this->kernel_compiled = false;
+    this->c_code = "";
+  }
+  Device_Info info;
+  inline Device(const Device_Info& info, const string& opencl_c_code=get_opencl_c_code()) {
+    print_device_info(info);
+    this->info = info;
+    this->c_code = "";
+#ifdef _WIN32
+    // Zwingt den NVIDIA-Treiber unter Windows im R-Thread zu strikt synchronem
+    // In-Order-Verhalten, wodurch der asynchrone Kernel-Lock physikalisch unmöglich wird!
+    cl_int err = CL_SUCCESS;
+    cl_command_queue_properties properties = CL_QUEUE_PROFILING_ENABLE;
+    this->cl_queue = cl::CommandQueue(info.cl_context, info.cl_device,properties, &err ); // queue to push commands for the device
+    // Optionale Sicherheitsprüfung (falls gewünscht)
+    if (err != CL_SUCCESS) {
+      print_error("Fehler beim Erstellen der synchronen CommandQueue unter Windows: " + to_string((int)err));
+    }
+#else
+    // Linux und macOS nutzen weiterhin das Standard-Verhalten
+    this->cl_queue = cl::CommandQueue(info.cl_context, info.cl_device); // queue to push commands for the device
+#endif
+    // this->compile_kernel();
+    /*
+      cl::Program::Sources cl_source;
+      const string kernel_code = enable_device_capabilities()+"\n"+opencl_c_code;
+      cl_source.push_back({ kernel_code.c_str(), kernel_code.length() });
+      this->cl_program = cl::Program(info.cl_context, cl_source);
+      const string build_options = "-cl-std=CL"+info.opencl_c_version+" -cl-finite-math-only -cl-no-signed-zeros -cl-mad-enable"+(info.patch_intel_gpu_above_4gb ? " -cl-intel-greater-than-4GB-buffer-required" : "");
+      #ifndef LOG
+      int error = cl_program.build({ info.cl_device }, (build_options+" -w").c_str()); // compile OpenCL C code, disable warnings
+      if(error) print_warning(cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device)); // print build log
+      #else // LOG, generate logfile for OpenCL code compilation
+      int error = cl_program.build({ info.cl_device }, build_options.c_str()); // compile OpenCL C code
+      const string log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
+      write_file("bin/kernel.log", log); // save build log
+      if((uint)log.length()>2u) print_warning(log); // print build log
+      #endif // LOG
+      if(error) print_error("OpenCL C code compilation failed with error code "+to_string(error)+". Make sure there are no errors in kernel.cpp.");
+      else print_info("OpenCL C code successfully compiled.");
+      #ifdef PTX // generate assembly (ptx) file for OpenCL code
+      write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>()[0][0]); // save binary (ptx file)
+      #endif // PTX
+    */
+    this->exists = true;
+  }
+
+  // 🚀 DER DEFINITIVE WINDOWS- & LINUX-RETTUNGSTRACK FÜR DEINEN FORK (MIT HIGHSPEED-TIMING):
+  inline Device(cl_context ext_context, cl_device_id ext_device, cl_command_queue ext_queue, int p_idx = 0, int d_idx = 0) {
+    auto t_start = std::chrono::high_resolution_clock::now();
+    std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 1. Eintritt in C-API-Konstruktor..." << std::endl << std::flush;
+
+    this->exists = true;
     this->c_code = "";
     this->kernel_compiled = false;
     this->platform_idx = p_idx;
     this->device_idx = d_idx;
-    // 🎯 UNIVERSALER PFAD-DEFAULT FÜR WINDOWS, LINUX & MACOS:
     this->compiler_path = "./";
     this->math_library_path = "";
-    
+
 #ifdef _WIN32
     this->compiler_binary = "ocl_compiler.exe";
 #else
-    this->compiler_binary = "ocl_compiler"; // Einheitlich ohne Endung für Linux & macOS
+    this->compiler_binary = "ocl_compiler"; 
 #endif
+
+    auto t_base = std::chrono::high_resolution_clock::now();
+    double d_base = std::chrono::duration<double>(t_base - t_start).count();
+    std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 2. Basismember gesetzt | Schritt: " << d_base << "s | Gesamt: " << d_base << "s" << std::endl << std::flush;
     
+    // 🎯 VOR DEM KRITISCHEN TREIBER-WRAPPING DIE PIPES LEERFEGEN
+    std::cout << std::flush; std::cerr << std::flush;
+    fflush(stdout); fflush(stderr);
+
 #ifdef _WIN32
+    std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 3a. Windows: Starte cl::CommandQueue(ext_queue, false)..." << std::endl << std::flush;
     this->cl_queue = cl::CommandQueue(ext_queue, false);
 #else
+    std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 3b. Linux: Starte cl::CommandQueue(ext_queue, true)..." << std::endl << std::flush;
     this->cl_queue = cl::CommandQueue(ext_queue, true);
 #endif
 
-    // 🎯 FIX: Wir initialisieren die C++ Wrapper-Objekte über die korrekten Khronos-C-Konstruktoren,
-    // damit alle internen Treiber-Metadaten auf Windows und Linux voll zur Verfügung stehen!
+    auto t_queue = std::chrono::high_resolution_clock::now();
+    double d_queue = std::chrono::duration<double>(t_queue - t_base).count();
+    double g_queue = std::chrono::duration<double>(t_queue - t_start).count();
+    std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 4. CommandQueue gewrappt | Schritt: " << d_queue << "s | Gesamt: " << g_queue << "s" << std::endl << std::flush;
+
     this->info.cl_context = ext_context;
     this->info.cl_device  = ext_device;
 
@@ -457,121 +472,126 @@
     this->info.patch_intel_gpu_above_4gb = false;
     this->info.name = "OpenCLeaR Shared Accelerator";
     this->info.vendor = "Generic OpenCL Driver";
-    this->info.memory = 4096u;          
-    this->info.compute_units = 16u;     
+    this->info.memory = 4096u;
+    this->info.compute_units = 16u;
     this->info.clock_frequency = 1000u;
-    this->info.is_fp64_capable = true;  
+    this->info.is_fp64_capable = true;
+
+    auto t_end = std::chrono::high_resolution_clock::now();
+    double d_info = std::chrono::duration<double>(t_end - t_queue).count();
+    double g_end = std::chrono::duration<double>(t_end - t_start).count();
+    std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 5. Konstruktor erfolgreich beendet | Schritt: " << d_info << "s | Gesamt: " << g_end << "s\n" << std::endl << std::flush;
   }
-	  
-	  inline Device() {
-	    this->c_code = "";
-	    this->kernel_compiled = false;
-	  } // default constructor
-	  inline void barrier(const vector<Event>* event_waitlist=nullptr, Event* event_returned=nullptr) { cl_queue.enqueueBarrierWithWaitList(event_waitlist, event_returned); }
-	  inline void finish_queue() { cl_queue.finish(); }
-	  inline cl::Context get_cl_context() const { return info.cl_context; }
-	  inline cl::Program get_cl_program() const { return cl_program; }
-	  inline cl::CommandQueue get_cl_queue() const { return cl_queue; }
-	  inline bool is_initialized() const { return exists; }
-	  inline void set_c_code(const string& c_code){
-	    this->c_code = c_code;
-	  }
-	  inline string get_c_code(){
-	    return this->c_code;
-	  }
-	  inline string get_compiled_code(){
-	    return this->compiled_code;
-	  }
-	  inline void set_kernel_code(const string& kernel_code){
-	    this->kernel_code = kernel_code;
-	  }
-	  inline string get_kernel_code(){
-	    return this->kernel_code;
-	  }
-	  inline void set_kernel_file(const string& kernel_file){
-	    this->kernel_file = kernel_file;
-	  }
-	  inline string get_kernel_file(){
-	    return this->kernel_file;
-	  }
-	  inline void set_kernel_path(const string& kernel_path){
-	    this->kernel_path = kernel_path;
-	  }
-	  inline string get_kernel_path(){
-	    return this->kernel_path;
-	  }
-	  inline void set_kernel_name(const string& kernel_name){
-	    this->kernel_name = kernel_name;
-	  }
-	  inline string get_kernel_name(){
-	    return this->kernel_name;
-	  }
-      // 🎯 GETTER & SETTER FÜR DEINE MATHEMATISCHE ERWEITERUNG
-      inline void set_math_library_path(const std::string& path) { 
-        this->math_library_path = path; 
-      }
-      
-      inline std::string get_math_library_path() const { 
-        return this->math_library_path; 
-      }
-      // 🎯 DER NEUE CACHE-GETTER: Gibt den geschützten Binärpfad nach außen frei
-      inline std::string get_binary_cache_path() const {
-        return this->binary_cache_path;
-      }
-      inline void set_compiler_path(const std::string& path) { this->compiler_path = path; }
-      inline std::string get_compiler_path() const { return this->compiler_path; }
-      
-      inline void set_compiler_binary(const std::string& binary) { this->compiler_binary = binary; }
-      inline std::string get_compiler_binary() const { return this->compiler_binary; }
-	  
-	  // 🚀 NEU: Ermöglicht das direkte Injizieren von Kernel-Code als RAM-String!
-	  inline void set_kernel_source(const std::string& source_code) {
-	    this->kernel_code = source_code;
-	    this->kernel_compiled = false; // Erzwingt, dass beim nächsten compile_kernel() frisch gebaut wird
-	    this->kernel_name="STDIN";
-	    this->kernel_path="";
-	    this->kernel_loaded=true;
-	  }
 
-	  inline void load_kernel(string path, string file, bool force_load = false){
-	    print_info("loading kernel from >"+path+"< / >"+file+"< over >"+this->kernel_name+"<\n");
-	    // Wenn Pfad und Datei absolut identisch sind UND wir nicht zum Neuladen gezwungen werden -> ABBRECHEN!
-	    if (!force_load && this->kernel_compiled && this->kernel_path == path && this->kernel_file == file) {
-	      print_warning("kernel >"+this->kernel_name+"< already loaded: " + file +"\n");
-	      return;
-	    }
-	    this->kernel_compiled = false; // force recompile
-	    string target_file = path;
-	    if (!target_file.empty() && target_file.back() != '/' && target_file.back() != '\\') {
-	      target_file += "/";
-	    }
-	    target_file += file;
+  inline Device() {
+    this->c_code = "";
+    this->kernel_compiled = false;
+  } // default constructor
+  inline void barrier(const vector<Event>* event_waitlist=nullptr, Event* event_returned=nullptr) { cl_queue.enqueueBarrierWithWaitList(event_waitlist, event_returned); }
+  inline void finish_queue() { cl_queue.finish(); }
+  inline cl::Context get_cl_context() const { return info.cl_context; }
+  inline cl::Program get_cl_program() const { return cl_program; }
+  inline cl::CommandQueue get_cl_queue() const { return cl_queue; }
+  inline bool is_initialized() const { return exists; }
+  inline void set_c_code(const string& c_code){
+    this->c_code = c_code;
+  }
+  inline string get_c_code(){
+    return this->c_code;
+  }
+  inline string get_compiled_code(){
+    return this->compiled_code;
+  }
+  inline void set_kernel_code(const string& kernel_code){
+    this->kernel_code = kernel_code;
+  }
+  inline string get_kernel_code(){
+    return this->kernel_code;
+  }
+  inline void set_kernel_file(const string& kernel_file){
+    this->kernel_file = kernel_file;
+  }
+  inline string get_kernel_file(){
+    return this->kernel_file;
+  }
+  inline void set_kernel_path(const string& kernel_path){
+    this->kernel_path = kernel_path;
+  }
+  inline string get_kernel_path(){
+    return this->kernel_path;
+  }
+  inline void set_kernel_name(const string& kernel_name){
+    this->kernel_name = kernel_name;
+  }
+  inline string get_kernel_name(){
+    return this->kernel_name;
+  }
+  // 🎯 GETTER & SETTER FÜR DEINE MATHEMATISCHE ERWEITERUNG
+  inline void set_math_library_path(const std::string& path) {
+    this->math_library_path = path;
+  }
 
-	    std::ifstream infile(target_file);
-	    bool found = infile.good();
-	    infile.close();
+  inline std::string get_math_library_path() const {
+    return this->math_library_path;
+  }
+  // 🎯 DER NEUE CACHE-GETTER: Gibt den geschützten Binärpfad nach außen frei
+  inline std::string get_binary_cache_path() const {
+    return this->binary_cache_path;
+  }
+  inline void set_compiler_path(const std::string& path) { this->compiler_path = path; }
+  inline std::string get_compiler_path() const { return this->compiler_path; }
+
+  inline void set_compiler_binary(const std::string& binary) { this->compiler_binary = binary; }
+  inline std::string get_compiler_binary() const { return this->compiler_binary; }
+
+  // 🚀 NEU: Ermöglicht das direkte Injizieren von Kernel-Code als RAM-String!
+  inline void set_kernel_source(const std::string& source_code) {
+    this->kernel_code = source_code;
+    this->kernel_compiled = false; // Erzwingt, dass beim nächsten compile_kernel() frisch gebaut wird
+    this->kernel_name="STDIN";
+    this->kernel_path="";
+    this->kernel_loaded=true;
+  }
+
+  inline void load_kernel(string path, string file, bool force_load = false){
+    print_info("loading kernel from >"+path+"< / >"+file+"< over >"+this->kernel_name+"<\n");
+    // Wenn Pfad und Datei absolut identisch sind UND wir nicht zum Neuladen gezwungen werden -> ABBRECHEN!
+    if (!force_load && this->kernel_compiled && this->kernel_path == path && this->kernel_file == file) {
+      print_warning("kernel >"+this->kernel_name+"< already loaded: " + file +"\n");
+      return;
+    }
+    this->kernel_compiled = false; // force recompile
+    string target_file = path;
+    if (!target_file.empty() && target_file.back() != '/' && target_file.back() != '\\') {
+      target_file += "/";
+    }
+    target_file += file;
+
+    std::ifstream infile(target_file);
+    bool found = infile.good();
+    infile.close();
 
 
-	    if(found) {
-	      this->kernel_file = target_file;
-	      string kernel_source = read_file(this->kernel_file);
+    if(found) {
+      this->kernel_file = target_file;
+      string kernel_source = read_file(this->kernel_file);
 
-	      // 🛡️ DER ABSOLUTE WINDOWS-SPEICHER-SCHUTZWALL:
-	      // Wir zwingen den Windows-Nvidia-Treiber hart dazu, das String-Ende zu sehen!
-	      // kernel_source += "\n\0";
+      // 🛡️ DER ABSOLUTE WINDOWS-SPEICHER-SCHUTZWALL:
+      // Wir zwingen den Windows-Nvidia-Treiber hart dazu, das String-Ende zu sehen!
+      // kernel_source += "\n\0";
 
-	      this->set_kernel_code(kernel_source);
-	      this->kernel_name=file;
-	      this->kernel_path=path;
-	      this->kernel_loaded=true;
+      this->set_kernel_code(kernel_source);
+      this->kernel_name=file;
+      this->kernel_path=path;
+      this->kernel_loaded=true;
 
-	      print_info("successfuly loaded kernel from >"+this->kernel_path+"< / >"+this->kernel_name+"<\n");
-	    } else {
-	      print_error("kernel not found: " + target_file);
-	    }
+      print_info("successfuly loaded kernel from >"+this->kernel_path+"< / >"+this->kernel_name+"<\n");
+    } else {
+      print_error("kernel not found: " + target_file);
+    }
 
-	  }
-      //
+  }
+  //
   inline void compile_kernel(std::string opt = "", bool force_recompile = false){
     auto t_start = std::chrono::high_resolution_clock::now();
 
@@ -589,19 +609,19 @@
     // =========================================================================
     // 🚀 NEU: DER UNFEHLBARE OPENCL-C QUELLTEXT-DRUCKER (Debug-Schnittstelle)
     // =========================================================================
-    std::cout << "\n=================== GENERATED OPENCL C CODE ===================\n" 
-              << compiled_code 
-              << "\n===============================================================\n\n" 
+    std::cout << "\n=================== GENERATED OPENCL C CODE ===================\n"
+              << compiled_code
+              << "\n===============================================================\n\n"
               << std::flush;
-    
-  
+
+
     cl_source.push_back({ compiled_code.c_str(), compiled_code.length() });
     this->cl_program = cl::Program(info.cl_context, cl_source);
 
     auto t_prog = std::chrono::high_resolution_clock::now();
-    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 1. cl::Program aus Source erzeugt | Zeit: " 
-		      << std::chrono::duration<double>(t_prog - t_start).count() << "s" << std::endl << std::flush;
-    
+    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 1. cl::Program aus Source erzeugt | Zeit: "
+              << std::chrono::duration<double>(t_prog - t_start).count() << "s" << std::endl << std::flush;
+
     string build_options = opt + " -cl-std=CL" + info.opencl_c_version;
 
     if (opt.find("-cl-opt-disable") == string::npos) {
@@ -626,128 +646,128 @@
     bool build_finished = false;
 
     std::thread t([=, &build_finished, &error, this]() {
-        error = cl_program.build({ this->info.cl_device }, final_options.c_str());
-        build_finished = true;
+      error = cl_program.build({ this->info.cl_device }, final_options.c_str());
+      build_finished = true;
     });
-    
-    t.detach(); 
+
+    t.detach();
 
     while (!build_finished) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
-    
+
     std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 3. cl_program.build() beendet. Erwische Windows-Scheduler..." << std::endl << std::flush;
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
 #else
     std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 2. Starte natives cl_program.build()..." << std::endl << std::flush;
     // 🎯 DER RETTENDE CATCH-BLOCK DIREKT BEIM BUILD-AUFRUF
     try {
-    error = cl_program.build({ this->info.cl_device }, final_options.c_str());
-    } 
+      error = cl_program.build({ this->info.cl_device }, final_options.c_str());
+    }
     catch (...) {
-        std::string raw_nvidia_log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
-        
-        std::cout << "\n=================== NATIVE OPENCL BUILD LOG (CATCH) ===================\n" 
-                  << raw_nvidia_log 
-                  << "\n========================================================================\n\n" << std::flush;
-        throw std::runtime_error("OpenCL Fatal Build Exception");
+      std::string raw_nvidia_log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
+
+      std::cout << "\n=================== NATIVE OPENCL BUILD LOG (CATCH) ===================\n"
+                << raw_nvidia_log
+                << "\n========================================================================\n\n" << std::flush;
+      throw std::runtime_error("OpenCL Fatal Build Exception");
     }
 #endif
 
     auto t_build_end = std::chrono::high_resolution_clock::now();
-    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 3. cl_program.build() beendet | Code: " << error 
-		      << " | Reine Build-Zeit: " << std::chrono::duration<double>(t_build_end - t_build_start).count() << "s" << std::endl << std::flush;
+    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 3. cl_program.build() beendet | Code: " << error
+              << " | Reine Build-Zeit: " << std::chrono::duration<double>(t_build_end - t_build_start).count() << "s" << std::endl << std::flush;
 
     // 🎯 DER FEHLERFESTE ZWANG-DRUCKER FÜR DEINEN ORIGINAL-CODE
     std::string hardware_log = "";
     try {
-        hardware_log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
+      hardware_log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
     } catch(...) {
-        hardware_log = "Konnte Build-Log nicht auslesen.";
+      hardware_log = "Konnte Build-Log nicht auslesen.";
     }
-    
+
     if(error) {
       this->kernel_compiled = false;
-      
+
       // Wir werfen eine cl::Error, damit der catch-Block im ocl_compiler sie sauber fängt!
       throw std::runtime_error("OpenCL Fatal Build Exception");
     } else {
       print_info("OpenCL C code successfully compiled.");
       this->kernel_compiled = true;
-      
+
     }
-      // 🚀 AUCH BEI SUCCESS DIREKT AUF STD::CERR AUSGEBEN (Für distance_matrix Sichtbarkeit!)
-      std::cout << "\n=================== NATIVE OPENCL BUILD LOG (SUCCESS) ===================\n"
-                << hardware_log
-                << "\n=========================================================================\n\n" << std::flush;
- 
-#ifdef PTX 
+    // 🚀 AUCH BEI SUCCESS DIREKT AUF STD::CERR AUSGEBEN (Für distance_matrix Sichtbarkeit!)
+    std::cout << "\n=================== NATIVE OPENCL BUILD LOG (SUCCESS) ===================\n"
+              << hardware_log
+              << "\n=========================================================================\n\n" << std::flush;
+
+#ifdef PTX
     write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>());
-#endif 
+#endif
   }
 
-      //
+  //
 
   void initialize_binary_cache_path() {
-      std::vector<cl::Platform> platforms;
-      cl::Platform::get(&platforms);
-      if (this->platform_idx >= (int)platforms.size()) return;
-      cl::Platform platform = platforms[this->platform_idx];
+    std::vector<cl::Platform> platforms;
+    cl::Platform::get(&platforms);
+    if (this->platform_idx >= (int)platforms.size()) return;
+    cl::Platform platform = platforms[this->platform_idx];
 
-      std::vector<cl::Device> devices;
-      platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
-      if (this->device_idx >= (int)devices.size()) return;
-      cl::Device dev = devices[this->device_idx];
+    std::vector<cl::Device> devices;
+    platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
+    if (this->device_idx >= (int)devices.size()) return;
+    cl::Device dev = devices[this->device_idx];
 
-      std::string os_label = "unknown";
-      std::string arch_label = "x86_64";
-  #if defined(__x86_64__) || defined(_M_X64)
-      arch_label = "x86_64";
-  #elif defined(__aarch64__) || defined(_M_ARM64)
-      arch_label = "arm64";
-  #endif
+    std::string os_label = "unknown";
+    std::string arch_label = "x86_64";
+#if defined(__x86_64__) || defined(_M_X64)
+    arch_label = "x86_64";
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    arch_label = "arm64";
+#endif
 
-  #if defined(_WIN32)
-      os_label = "windows_" + arch_label;
-  #elif defined(__APPLE__)
-      os_label = "macos_" + arch_label;
-  #elif defined(__linux__)
-      os_label = "linux_" + arch_label;
-  #endif
+#if defined(_WIN32)
+    os_label = "windows_" + arch_label;
+#elif defined(__APPLE__)
+    os_label = "macos_" + arch_label;
+#elif defined(__linux__)
+    os_label = "linux_" + arch_label;
+#endif
 
-      std::string platform_name = platform.getInfo<CL_PLATFORM_NAME>();
-      std::string device_name = dev.getInfo<CL_DEVICE_NAME>();
-      
-      auto clean_str = [](std::string s) {
-          std::string res = "";
-          for (char c : s) {
-              if (std::isalnum(c)) res += std::tolower(c);
-              else if (c == ' ' || c == '-' || c == '_') res += '_';
-          }
-          return res;
-      };
+    std::string platform_name = platform.getInfo<CL_PLATFORM_NAME>();
+    std::string device_name = dev.getInfo<CL_DEVICE_NAME>();
 
-      std::string filename = "kernel";
-      if (!this->kernel_name.empty()) {
-          std::string raw_file = this->kernel_name;
-          size_t last_dot = raw_file.find_last_of(".");
-          filename = (last_dot == std::string::npos) ? raw_file : raw_file.substr(0, last_dot);
+    auto clean_str = [](std::string s) {
+      std::string res = "";
+      for (char c : s) {
+        if (std::isalnum(c)) res += std::tolower(c);
+        else if (c == ' ' || c == '-' || c == '_') res += '_';
       }
+      return res;
+    };
 
-      std::string target_dir = "./.cl_cache/" + os_label + "/" + clean_str(platform_name) + "/" + clean_str(device_name);
-      this->binary_cache_path = target_dir + "/" + filename + ".bin";
-  }      
+    std::string filename = "kernel";
+    if (!this->kernel_name.empty()) {
+      std::string raw_file = this->kernel_name;
+      size_t last_dot = raw_file.find_last_of(".");
+      filename = (last_dot == std::string::npos) ? raw_file : raw_file.substr(0, last_dot);
+    }
 
-      // 🚀 Lädt einen vorkompilierten Binär-Kernel (PTX / SPIR-V / Intel Bin)
+    std::string target_dir = "./.cl_cache/" + os_label + "/" + clean_str(platform_name) + "/" + clean_str(device_name);
+    this->binary_cache_path = target_dir + "/" + filename + ".bin";
+  }
+
+  // 🚀 Lädt einen vorkompilierten Binär-Kernel (PTX / SPIR-V / Intel Bin)
   inline void load_compiled_binary(const std::string& binary_path) {
     auto t0 = std::chrono::high_resolution_clock::now();
-    
+
     // 1. Datei einlesen
     std::ifstream file(binary_path, std::ios::binary | std::ios::ate);
     if (!file.good()) {
-        throw std::runtime_error("OpenCL Binary nicht gefunden: " + binary_path);
+      throw std::runtime_error("OpenCL Binary nicht gefunden: " + binary_path);
     }
-    
+
     size_t size = file.tellg();
     file.seekg(0, std::ios::beg);
     std::vector<unsigned char> buffer(size);
@@ -757,9 +777,9 @@
     // 🔬 MATHEMATISCHER PRÜFSUMMEN-CHECK (Einfache, extrem schnelle Byte-Summe)
     unsigned long long byte_sum = 0;
     for (unsigned char b : buffer) {
-        byte_sum += b;
+      byte_sum += b;
     }
-    
+
     auto t1 = std::chrono::high_resolution_clock::now();
 
     // 🔬 DIAGNOSTISCHER HARDWARE-HANDLE-CHECK
@@ -769,7 +789,7 @@
               << "   -> Mathematischer Byte-Hash: " << byte_sum << std::dec << " (" << size << " Bytes)\n"
               << "⏱️ [BIN-LOAD-SUBPROFILE] Zeit fuer I/O: " << std::chrono::duration<double>(t1 - t0).count() << "s" << std::endl << std::flush;
 
-    
+
     // 2. Khronos-Vektoren vorbereiten
     cl::Program::Binaries binaries = { buffer };
     cl::vector<cl::Device> devices_vec = { this->info.cl_device };
@@ -780,184 +800,184 @@
 
     // 3. Der eigentliche Erzeugungs-API-Call (Verdacht auf Loader Lock / Topologie-Deadlock)
     std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 2. Starte cl::Program Erzeugung..." << std::endl << std::flush;
-    
+
     this->cl_program = cl::Program(info.cl_context, devices_vec, binaries, &binary_statuses, &error);
-    
+
     auto t3 = std::chrono::high_resolution_clock::now();
-    std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 3. cl::Program beendet | Fehler-Code: " << error 
+    std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 3. cl::Program beendet | Fehler-Code: " << error
               << " | Zeit für diesen Schritt: " << std::chrono::duration<double>(t3 - t2).count() << "s" << std::endl << std::flush;
 
     if (error || (binary_statuses.size() > 0 && binary_statuses[0] != CL_SUCCESS)) {
-        throw std::runtime_error("Fehler beim Laden der OpenCL-Binärdatei. Code: " + std::to_string(error));
+      throw std::runtime_error("Fehler beim Laden der OpenCL-Binärdatei. Code: " + std::to_string(error));
     }
 
     // 4. Der Build-Call (Formalität bei Binaries, sollte 0ms dauern)
     std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 4. Starte cl_program.build()..." << std::endl << std::flush;
-    
+
     cl_program.build(devices_vec, "");
-    
+
     auto t4 = std::chrono::high_resolution_clock::now();
-    std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 5. cl_program.build() beendet | Zeit: " 
+    std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 5. cl_program.build() beendet | Zeit: "
               << std::chrono::duration<double>(t4 - t3).count() << "s" << std::endl << std::flush;
 
     this->kernel_compiled = true;
   }
-      // 💾 NATIVE BACKEND-METHODE FÜR DEN BYTESYNCHRONEN ELF/PTX-EXPORT
-        // 💾 NATIVE, UNZERSTÖRBARE BACKEND-METHODE FÜR DEN BINÄR-EXPORT
+  // 💾 NATIVE BACKEND-METHODE FÜR DEN BYTESYNCHRONEN ELF/PTX-EXPORT
+  // 💾 NATIVE, UNZERSTÖRBARE BACKEND-METHODE FÜR DEN BINÄR-EXPORT
   inline void export_compiled_binary(const std::string& binary_path) {
-      try {
-          // 🛡️ REPARATUR-WACHMACHER 1 FÜR WINDOWS: Pipe öffnen vor dem Treiber-Call
-          std::cout << "💾 [EXPORT] Starte treibersicheren ELF-Export..." << std::endl << std::flush;
+    try {
+      // 🛡️ REPARATUR-WACHMACHER 1 FÜR WINDOWS: Pipe öffnen vor dem Treiber-Call
+      std::cout << "💾 [EXPORT] Starte treibersicheren ELF-Export..." << std::endl << std::flush;
 
-          size_t real_size = 0;
-          cl_int err = clGetProgramInfo(this->cl_program(), CL_PROGRAM_BINARY_SIZES, 
-                                        sizeof(size_t), &real_size, NULL);
-          
-          // 🛡️ REPARATUR-WACHMACHER 2 FÜR WINDOWS: Signal direkt nach der Größen-Ermittlung
-          std::cout << "💾 [EXPORT] Groesse ermittelt: " << real_size << " Bytes. Allokiere Buffer..." << std::endl << std::flush;
+      size_t real_size = 0;
+      cl_int err = clGetProgramInfo(this->cl_program(), CL_PROGRAM_BINARY_SIZES,
+                                    sizeof(size_t), &real_size, NULL);
 
-          if (err != CL_SUCCESS || real_size == 0) {
-              std::cerr << "⚠️ Warnung: Keine gueltigen Binaergroessen vom Treiber gemeldet! Code: " << err << std::endl;
-              return;
-          }
+      // 🛡️ REPARATUR-WACHMACHER 2 FÜR WINDOWS: Signal direkt nach der Größen-Ermittlung
+      std::cout << "💾 [EXPORT] Groesse ermittelt: " << real_size << " Bytes. Allokiere Buffer..." << std::endl << std::flush;
 
-          std::vector<unsigned char> raw_buffer(real_size);
-          std::vector<unsigned char*> binaries_pointers = { raw_buffer.data() };
-
-          // 🛡️ REPARATUR-WACHMACHER 3 FÜR WINDOWS: Pipe unmittelbar vor dem Datenabruf wachhalten
-          std::cout << "💾 [EXPORT] Rufe Maschinencode von Hardware ab..." << std::endl << std::flush;
-
-          err = clGetProgramInfo(this->cl_program(), CL_PROGRAM_BINARIES, 
-                                 sizeof(unsigned char*) * binaries_pointers.size(), 
-                                 binaries_pointers.data(), NULL);
-          
-          // 🛡️ REPARATUR-WACHMACHER 4 FÜR WINDOWS: Weckt die Rterm-Pipe unmittelbar vor dem Dateischreiben auf!
-          std::cout << "💾 [EXPORT] Treiber-Buffer erfolgreich ausgelesen. Schreibe Datei..." << std::endl << std::flush;
-
-          if (err == CL_SUCCESS) {
-              std::ofstream out(binary_path, std::ios::binary | std::ios::out);
-              out.write(reinterpret_cast<const char*>(raw_buffer.data()), real_size);
-              out.close();
-              
-              std::cout << "💾 OpenCL-Binary erfolgreich exportiert: " << binary_path 
-                        << " (" << real_size << " Bytes)" << std::endl << std::flush;
-          } else {
-              std::cerr << "💥 Fehler beim Abrufen der Binaerdaten. Code: " << err << std::endl;
-          }
-      } 
-      catch (const std::exception& e) {
-          std::cerr << "💥 Exception im export_compiled_binary: " << e.what() << std::endl;
+      if (err != CL_SUCCESS || real_size == 0) {
+        std::cerr << "⚠️ Warnung: Keine gueltigen Binaergroessen vom Treiber gemeldet! Code: " << err << std::endl;
+        return;
       }
+
+      std::vector<unsigned char> raw_buffer(real_size);
+      std::vector<unsigned char*> binaries_pointers = { raw_buffer.data() };
+
+      // 🛡️ REPARATUR-WACHMACHER 3 FÜR WINDOWS: Pipe unmittelbar vor dem Datenabruf wachhalten
+      std::cout << "💾 [EXPORT] Rufe Maschinencode von Hardware ab..." << std::endl << std::flush;
+
+      err = clGetProgramInfo(this->cl_program(), CL_PROGRAM_BINARIES,
+                             sizeof(unsigned char*) * binaries_pointers.size(),
+                             binaries_pointers.data(), NULL);
+
+      // 🛡️ REPARATUR-WACHMACHER 4 FÜR WINDOWS: Weckt die Rterm-Pipe unmittelbar vor dem Dateischreiben auf!
+      std::cout << "💾 [EXPORT] Treiber-Buffer erfolgreich ausgelesen. Schreibe Datei..." << std::endl << std::flush;
+
+      if (err == CL_SUCCESS) {
+        std::ofstream out(binary_path, std::ios::binary | std::ios::out);
+        out.write(reinterpret_cast<const char*>(raw_buffer.data()), real_size);
+        out.close();
+
+        std::cout << "💾 OpenCL-Binary erfolgreich exportiert: " << binary_path
+                  << " (" << real_size << " Bytes)" << std::endl << std::flush;
+      } else {
+        std::cerr << "💥 Fehler beim Abrufen der Binaerdaten. Code: " << err << std::endl;
+      }
+    }
+    catch (const std::exception& e) {
+      std::cerr << "💥 Exception im export_compiled_binary: " << e.what() << std::endl;
+    }
   }
 #include <sys/stat.h> // 🎯 Zwingend oben einbinden für die Zeitstempel (stat)
 
-// ...
+  // ...
 
 #include <sys/stat.h> // 🎯 WICHTIG: Muss ganz oben in opencl.hpp stehen!
 
-// ...
+  // ...
 
   inline void load_or_build_kernel() {
+    std::string binary_path = this->get_binary_cache_path();
+    std::string source_path = this->get_kernel_path();
+
+    if (binary_path.empty()) {
+      throw std::runtime_error("💥 Fehler: Cache-Pfad konnte im Backend nicht ermittelt werden!");
+    }
+
+    // 1. Prüfen, ob das vorkompilierte Binary überhaupt existiert
+    std::ifstream check_file(binary_path, std::ios::binary);
+    bool binary_exists = check_file.good();
+    check_file.close();
+
+    // 🎯 2. DER MAKE-ÄHNLICHE ZEITSTEMPEL-VERGLEICH (C++11 konform für macOS 10.12+)
+    bool source_is_newer = false;
+    if (binary_exists && !source_path.empty()) {
+#ifdef _WIN32
+      struct _stat stat_source;
+      struct _stat stat_binary;
+      int src_res = _stat(source_path.c_str(), &stat_source);
+      int bin_res = _stat(binary_path.c_str(), &stat_binary);
+#else
+      struct stat stat_source;
+      struct stat stat_binary;
+      int src_res = stat(source_path.c_str(), &stat_source);
+      int bin_res = stat(binary_path.c_str(), &stat_binary);
+#endif
+      // Holt die Dateistatistiken (st_mtime = Letzte Modifikationszeit)
+
+      if (src_res == 0 && bin_res == 0) {
+        if (stat_source.st_mtime > stat_binary.st_mtime) {
+          source_is_newer = true;
+          std::cout << "🔄 [MAKE-REBUILD] OpenCL-Quellcode wurde veraendert! Erwische veraltetes Binary..." << std::endl << std::flush;
+        }
+      }
+    }
+
+    // 🚀 INTELLIGENTE WARMSTART-WEICHE
+    if (binary_exists && !source_is_newer) {
+      std::cout << "⏱️ [BACKEND] Vorkompiliertes, aktuelles Binary gefunden. Überspringe JIT..." << std::endl << std::flush;
+      this->load_compiled_binary(binary_path);
+    } else {
+      std::cout << "⏱️ [BACKEND] Binary fehlt oder ist veraltet. Starte Standalone-Kompilierung..." << std::endl << std::flush;
+      // 🎯 SAUBERE TRENNUNG: Basis-Pfad holen und sicherstellen, dass er mit einem Slash endet
+      std::string base_dir = this->kernel_path;
+      if (!base_dir.empty() && base_dir.back() != '/' && base_dir.back() != '\\') {
+        base_dir += "/";
+      }
+
+      // Falls kernel_name leer ist, nutzen wir einen sicheren Default
+      std::string k_name = this->kernel_name.empty() ? "kernel.cl" : this->kernel_name;
+
+      // 🎯 Hier werden Verzeichnis und Dateiname exakt zusammengeführt!
+      std::string source_path = base_dir + k_name;
       std::string binary_path = this->get_binary_cache_path();
-      std::string source_path = this->get_kernel_path();
-
-      if (binary_path.empty()) {
-          throw std::runtime_error("💥 Fehler: Cache-Pfad konnte im Backend nicht ermittelt werden!");
-      }
-
-      // 1. Prüfen, ob das vorkompilierte Binary überhaupt existiert
-      std::ifstream check_file(binary_path, std::ios::binary);
-      bool binary_exists = check_file.good();
-      check_file.close();
-
-      // 🎯 2. DER MAKE-ÄHNLICHE ZEITSTEMPEL-VERGLEICH (C++11 konform für macOS 10.12+)
-      bool source_is_newer = false;
-      if (binary_exists && !source_path.empty()) {
+      // Ordnerstruktur für den Cache rekursiv anlegen
+      std::string target_dir = binary_path.substr(0, binary_path.find_last_of("/\\"));
+      native_mkdir_recursive(target_dir);
+      // Plattform-sichere Compiler-Befehlskette (cmd.exe safe)
+      std::string full_compiler_cmd = "";
 #ifdef _WIN32
-          struct _stat stat_source;
-          struct _stat stat_binary;
-          int src_res = _stat(source_path.c_str(), &stat_source);
-          int bin_res = _stat(binary_path.c_str(), &stat_binary);
-#else
-          struct stat stat_source;
-          struct stat stat_binary;
-          int src_res = stat(source_path.c_str(), &stat_source);
-          int bin_res = stat(binary_path.c_str(), &stat_binary);
-#endif          
-          // Holt die Dateistatistiken (st_mtime = Letzte Modifikationszeit)
-          
-          if (src_res == 0 && bin_res == 0) {
-              if (stat_source.st_mtime > stat_binary.st_mtime) {
-                  source_is_newer = true;
-                  std::cout << "🔄 [MAKE-REBUILD] OpenCL-Quellcode wurde veraendert! Erwische veraltetes Binary..." << std::endl << std::flush;
-              }
-          }
-      }
-
-      // 🚀 INTELLIGENTE WARMSTART-WEICHE
-      if (binary_exists && !source_is_newer) {
-          std::cout << "⏱️ [BACKEND] Vorkompiliertes, aktuelles Binary gefunden. Überspringe JIT..." << std::endl << std::flush;
-          this->load_compiled_binary(binary_path);
+      // Wenn der Pfad unter Windows der Default "./" oder leeres Verzeichnis ist,
+      // rufen wir die Exe direkt ohne Slashes auf, damit cmd.exe nicht stolpert!
+      if (this->compiler_path == "./" || this->compiler_path == "." || this->compiler_path.empty()) {
+        full_compiler_cmd = this->compiler_binary;
       } else {
-          std::cout << "⏱️ [BACKEND] Binary fehlt oder ist veraltet. Starte Standalone-Kompilierung..." << std::endl << std::flush;
-          // 🎯 SAUBERE TRENNUNG: Basis-Pfad holen und sicherstellen, dass er mit einem Slash endet
-          std::string base_dir = this->kernel_path;
-          if (!base_dir.empty() && base_dir.back() != '/' && base_dir.back() != '\\') {
-              base_dir += "/";
-          }
-
-          // Falls kernel_name leer ist, nutzen wir einen sicheren Default
-          std::string k_name = this->kernel_name.empty() ? "kernel.cl" : this->kernel_name;
-
-          // 🎯 Hier werden Verzeichnis und Dateiname exakt zusammengeführt!
-          std::string source_path = base_dir + k_name;
-          std::string binary_path = this->get_binary_cache_path();
-          // Ordnerstruktur für den Cache rekursiv anlegen
-          std::string target_dir = binary_path.substr(0, binary_path.find_last_of("/\\"));
-          native_mkdir_recursive(target_dir);
-          // Plattform-sichere Compiler-Befehlskette (cmd.exe safe)
-          std::string full_compiler_cmd = "";
-#ifdef _WIN32
-          // Wenn der Pfad unter Windows der Default "./" oder leeres Verzeichnis ist,
-          // rufen wir die Exe direkt ohne Slashes auf, damit cmd.exe nicht stolpert!
-          if (this->compiler_path == "./" || this->compiler_path == "." || this->compiler_path.empty()) {
-              full_compiler_cmd = this->compiler_binary;
-          } else {
-              full_compiler_cmd = this->compiler_path;
-              if (full_compiler_cmd.back() != '/' && full_compiler_cmd.back() != '\\') {
-                  full_compiler_cmd += "/";
-              }
-              full_compiler_cmd += this->compiler_binary;
-          }
-#else
-          // Linux und macOS nutzen weiterhin die universelle Slash-Verschmelzung
-          full_compiler_cmd = this->compiler_path;
-          if (!full_compiler_cmd.empty() && full_compiler_cmd.back() != '/' && full_compiler_cmd.back() != '\\') {
-              full_compiler_cmd += "/";
-          }
-          full_compiler_cmd += this->compiler_binary;
-#endif 
-
-          // 🎯 NUTZT DIE INTERNEN MEMBER-INDIZES: Vollkommen autonom und fehlerfrei!
-          std::string compiler_cmd = full_compiler_cmd +
-            " -i " + source_path + 
-            " -c ./.cl_cache" + 
-            " -p " + std::to_string(this->platform_idx) + 
-            " -d " + std::to_string(this->device_idx);
-          // 🎯 JETZT AKTIVIEREN: Wenn der Pfad zur Math-Library nicht leer ist, hängen wir das -l Flag an!
-          if (!this->math_library_path.empty()) {
-              compiler_cmd += " -l " + this->math_library_path;
-          }
-          std::cout << "🔄 [BACKEND-EXEC] " << compiler_cmd << std::endl << std::flush;
-
-          int status = std::system(compiler_cmd.c_str());
-          if (status != 0) {
-              throw std::runtime_error("💥 Fehler: Der Standalone CLI-Compiler-Prozess lieferte einen Fehler-Code (" + std::to_string(status) + ")!");
-          }
-
-          std::cout << "💾 [BACKEND] Neues Binary erfolgreich erzeugt. Lade Code..." << std::endl << std::flush;
-          this->load_compiled_binary(binary_path);
+        full_compiler_cmd = this->compiler_path;
+        if (full_compiler_cmd.back() != '/' && full_compiler_cmd.back() != '\\') {
+          full_compiler_cmd += "/";
+        }
+        full_compiler_cmd += this->compiler_binary;
       }
+#else
+      // Linux und macOS nutzen weiterhin die universelle Slash-Verschmelzung
+      full_compiler_cmd = this->compiler_path;
+      if (!full_compiler_cmd.empty() && full_compiler_cmd.back() != '/' && full_compiler_cmd.back() != '\\') {
+        full_compiler_cmd += "/";
+      }
+      full_compiler_cmd += this->compiler_binary;
+#endif
+
+      // 🎯 NUTZT DIE INTERNEN MEMBER-INDIZES: Vollkommen autonom und fehlerfrei!
+      std::string compiler_cmd = full_compiler_cmd +
+        " -i " + source_path +
+        " -c ./.cl_cache" +
+        " -p " + std::to_string(this->platform_idx) +
+        " -d " + std::to_string(this->device_idx);
+      // 🎯 JETZT AKTIVIEREN: Wenn der Pfad zur Math-Library nicht leer ist, hängen wir das -l Flag an!
+      if (!this->math_library_path.empty()) {
+        compiler_cmd += " -l " + this->math_library_path;
+      }
+      std::cout << "🔄 [BACKEND-EXEC] " << compiler_cmd << std::endl << std::flush;
+
+      int status = std::system(compiler_cmd.c_str());
+      if (status != 0) {
+        throw std::runtime_error("💥 Fehler: Der Standalone CLI-Compiler-Prozess lieferte einen Fehler-Code (" + std::to_string(status) + ")!");
+      }
+
+      std::cout << "💾 [BACKEND] Neues Binary erfolgreich erzeugt. Lade Code..." << std::endl << std::flush;
+      this->load_compiled_binary(binary_path);
+    }
   }
 
 };
@@ -1304,19 +1324,19 @@ public:
     cl_queue = device.get_cl_queue();
   }
   inline Kernel() {} // default constructor
-  
+
 
   inline Kernel& set_ranges(const ulong N, const ulong workgroup_size=(ulong)WORKGROUP_SIZE) {
     this->N = N;
-    
+
     // 🎯 FINALE MAC- & KLEINMATRIX-RETTUNG
     // Wenn das Grid kleiner als die Workgroup ist, überlassen wir der Hardware die Aufteilung (cl::NullRange)
     if (N < workgroup_size) {
-        cl_range_global = cl::NDRange(N); // Exakte Thread-Anzahl ohne Aufrunden
-        cl_range_local = cl::NullRange;   // Hardware entscheidet selbst
+      cl_range_global = cl::NDRange(N); // Exakte Thread-Anzahl ohne Aufrunden
+      cl_range_local = cl::NullRange;   // Hardware entscheidet selbst
     } else {
-        cl_range_global = cl::NDRange(((N + workgroup_size - 1ull) / workgroup_size) * workgroup_size);
-        cl_range_local = cl::NDRange(workgroup_size);
+      cl_range_global = cl::NDRange(((N + workgroup_size - 1ull) / workgroup_size) * workgroup_size);
+      cl_range_local = cl::NDRange(workgroup_size);
     }
     return *this;
   }
@@ -1324,19 +1344,19 @@ public:
   inline Kernel& set_ranges_2d(const ulong N, const ulong M, const ulong workgroup_size=(ulong)WORKGROUP_SIZE) {
     this->N = N;
     this->M = M;
-    
+
     if ((N * M) < workgroup_size) {
-        cl_range_global = cl::NDRange(N, M);
-        cl_range_local = cl::NullRange;
+      cl_range_global = cl::NDRange(N, M);
+      cl_range_local = cl::NullRange;
     } else {
-        cl_range_global = cl::NDRange(((N + workgroup_size - 1ull) / workgroup_size) * workgroup_size,
-                                      ((M + workgroup_size - 1ull) / workgroup_size) * workgroup_size);
-        cl_range_local = cl::NDRange(workgroup_size);
+      cl_range_global = cl::NDRange(((N + workgroup_size - 1ull) / workgroup_size) * workgroup_size,
+                                    ((M + workgroup_size - 1ull) / workgroup_size) * workgroup_size);
+      cl_range_local = cl::NDRange(workgroup_size);
     }
     return *this;
   }
-  
-  
+
+
   inline const ulong range() const { return N; }
   inline uint get_number_of_parameters() const { return number_of_parameters; }
   template<class... T> inline Kernel& add_parameters(const T&... parameters) { // add parameters to the list of existing parameters
@@ -1353,11 +1373,11 @@ public:
     // Falls nicht (oder falls global < lokal), zwingen wir den Treiber via cl::NullRange zur Auto-Aufteilung.
     cl::NDRange actual_local = cl_range_local;
     if (cl_range_local.size() > 0 && cl_range_global.size() > 0) {
-        size_t global_size = cl_range_global[0];
-        size_t local_size = cl_range_local[0];
-        if (global_size < local_size || (global_size % local_size != 0)) {
-            actual_local = cl::NullRange; // 🚀 Rettung für Mac & kleine Testmatrizen!
-        }
+      size_t global_size = cl_range_global[0];
+      size_t local_size = cl_range_local[0];
+      if (global_size < local_size || (global_size % local_size != 0)) {
+        actual_local = cl::NullRange; // 🚀 Rettung für Mac & kleine Testmatrizen!
+      }
     }
 
     for(uint i=0u; i<t; i++) {
