@@ -451,7 +451,8 @@ public:
     // 🎯 VOR DEM KRITISCHEN TREIBER-WRAPPING DIE PIPES LEERFEGEN
     std::cout << std::flush; std::cerr << std::flush;
     fflush(stdout); fflush(stderr);
-
+    // 🚀 NUR WRAPPEN, WENN TATSÄCHLICH EINE QUEUE ÜBERGEBEN WURDE:
+    if (ext_queue != NULL) {
 #ifdef _WIN32
     std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 3a. Windows: Starte cl::CommandQueue(ext_queue, false)..." << std::endl << std::flush;
     this->cl_queue = cl::CommandQueue(ext_queue, false);
@@ -459,6 +460,7 @@ public:
     std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 3b. Linux: Starte cl::CommandQueue(ext_queue, true)..." << std::endl << std::flush;
     this->cl_queue = cl::CommandQueue(ext_queue, true);
 #endif
+    }
 
     auto t_queue = std::chrono::high_resolution_clock::now();
     double d_queue = std::chrono::duration<double>(t_queue - t_base).count();
