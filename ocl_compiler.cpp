@@ -34,7 +34,7 @@ inline std::string get_opencl_c_code() {
 
 
 void print_usage() {
-    std::cout << "Verwendung: ocl_compiler -i <kernel.cl> -c <cache_base_dir> -p <platform_idx> -d <device_idx>\n";
+    std::cout << "Verwendung: ocl_compiler -i <kernel.cl> -c <cache_base_dir> -p <platform_idx> -d <device_idx> [-l <library_file.cl>]\\n";
 }
 
 int main(int argc, char* argv[]) {
@@ -52,6 +52,7 @@ int main(int argc, char* argv[]) {
         else if ((arg == "-p" || arg == "--platform") && i + 1 < argc) platform_idx = std::stoi(argv[++i]);
         else if ((arg == "-d" || arg == "--device") && i + 1 < argc) device_idx = std::stoi(argv[++i]);
         else if ((arg == "-l" || arg == "--library") && i + 1 < argc) library_file_path = argv[++i]; 
+        else if ((arg == "-h" || arg == "--help") && i + 1 < argc) print_usage(); 
     }
     
     if (input_path.empty()) {
@@ -81,6 +82,9 @@ int main(int argc, char* argv[]) {
             std::cerr << "⚠️ Warnung: Math-Library '" << library_file_path << "' konnte nicht geoeffnet werden! Fahre ohne fort.\n";
         }
     }
+    // 🎯 ÄUẞERE VARIABLEN: Für den catch-Scope sichtbar herausgezogen!
+    cl::Device device;
+    cl::Program cl_program;
     try {
         std::vector<cl::Platform> platforms;
         cl::Platform::get(&platforms);
@@ -104,27 +108,17 @@ int main(int argc, char* argv[]) {
 
         Device physx_device(context(), device(), queue());
 
-        std::string extensions = device.getInfo<CL_DEVICE_EXTENSIONS>();
-        bool is_fp64 = (extensions.find("cl_khr_fp64") != std::string::npos);
-        
-        std::string prolog = "";
-        if (!is_fp64) {
-            prolog = "#define real_t float\n#define real2_t float2\n";
-        } else {
-            prolog = "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n#define real_t double\n#define real2_t double2\n";
-        }
-        
-        // 🎯 DIE NATIVE WRAPPER-VERSCHMELZUNG:
-        // physx_device.compile_kernel() liest jetzt im Bauch der opencl.hpp vollautomatisch:
-        // prolog + get_opencl_c_code() (unsere Math-Lib!) + core_kernel aus!
-        std::string final_kernel_code = prolog + "\n" + core_kernel;
-        physx_device.set_kernel_source(final_kernel_code);
+        physx_device.set_kernel_source(core_kernel);
         
         physx_device.compile_kernel("-cl-opt-disable", false);
 
+        // Handle für den catch-Block sichern
+        cl_program = physx_device.get_cl_program();
+
         // 🎯 LOGISCHE RESTRUKTURIERUNG DES OUTPUTS:
         // Der Compiler baut sich seinen Zielpfad jetzt vollkommen autonom zusammen!
-        std::string os_label = "unknown";
+
+  std::string os_label = "unknown";
         std::string arch_label = "x86_64";
     #if defined(__x86_64__) || defined(_M_X64)
         arch_label = "x86_64";
@@ -159,8 +153,9 @@ int main(int argc, char* argv[]) {
                                   clean_str(device.getInfo<CL_DEVICE_NAME>()) + "/" + 
                                   filename + ".bin";
 
-        auto bin_data = physx_device.get_cl_program().getInfo<CL_PROGRAM_BINARIES>();
-        if (!bin_data.empty() && bin_data.size() > 0) {
+        // 🎯 FIX: Korrekter Zugriff auf das Khronos-Vektor-Layout [0]
+        auto bin_data = cl_program.getInfo<CL_PROGRAM_BINARIES>();
+        if (!bin_data.empty() && bin_data[0].size() > 0) {
             std::ofstream out(output_path, std::ios::binary | std::ios::out);
             // Greift gezielt auf das Byte-Array des primären Geräts zu [0]
             out.write(reinterpret_cast<const char*>(bin_data[0].data()), bin_data[0].size());
@@ -174,10 +169,33 @@ int main(int argc, char* argv[]) {
         }
     }
     catch (cl::Error &err) {
-        std::cerr << "OpenCL CLI-Compiler Fehler: " << err.what() << " (" << err.err() << ")\n";
+      //        std::cerr << "OpenCL CLI-Compiler Fehler: " << err.what() << " (" << err.err() << ")\n";
+        
+        if (err.err() == CL_BUILD_PROGRAM_FAILURE && device() != nullptr) {
+            std::cerr << "\n=================== NATIVE OPENCL COMPILER LOG ===================\n";
+            try {
+                std::string build_log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
+                std::cerr << build_log << "\n";
+            } 
+            catch (const cl::Error &log_err) {
+                std::cerr << "💥 Fehler beim Abrufen des Logs über den C++ Wrapper: " << log_err.what() << "\n";
+                std::cerr << "Versuche rohe C-API Abfrage...\n";
+                
+                size_t log_size = 0;
+                clGetProgramBuildInfo(cl_program(), device(), CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
+                if (log_size > 0) {
+                    std::vector<char> raw_log(log_size);
+                    clGetProgramBuildInfo(cl_program(), device(), CL_PROGRAM_BUILD_LOG, log_size, raw_log.data(), NULL);
+                    std::cerr << raw_log.data() << "\n";
+                }
+            }
+            std::cerr << "==================================================================\n\n";
+        }
+      
         std::_Exit(1);
     }
-    return 0;
+
+    std::_Exit(0); 
 }
 
 // set PATH=C:\rtools45\usr\bin;C:\rtools45\x86_64-w64-mingw32.static.posix\bin;%PATH%

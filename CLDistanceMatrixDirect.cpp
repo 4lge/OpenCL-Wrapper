@@ -99,7 +99,9 @@ NumericMatrix CLDistanceMatrixDirect(const NumericMatrix& mat, int platform_idx 
   
   // 🎯 DAS NEUE GEKAPSELTE INITIALISIERUNGS-MUSTER:
   // Setzt die Quelldatei, berechnet die Ordner und regelt den Kalt-/Warmstart vollkommen autonom!
-  device.set_kernel_path("distance_matrix.cl");
+
+  device.set_kernel_path("./");
+  device.set_kernel_name("distance_matrix.cl");
   device.initialize_binary_cache_path();
   
   // 🚀 EIN EINZIGER BEFEHL: Erledigt alles im Backend sychron und prozess-isoliert!

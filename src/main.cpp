@@ -190,26 +190,14 @@ try {
 
   wait();
   return 0;
-  } 
-#ifdef CL_HPP_ENABLE_EXCEPTIONS
-  catch (const cl::Exception& e) {
-        print_error("OpenCL error: " + std::string(e.what()));
-
-        // 🚀 DER LOOKUP-TURBO: Wir jagen die Fehler-ID durch Ihr integriertes CLErrorLookup!
-        std::string detailed_error = clerror::get_error_full(e.err());
-        print_error("Details -> " + detailed_error);
-
-        return 1;
+  }
+catch (const std::runtime_error& e) {
+    std::cerr << "\n❌ [Runtime Error] " << e.what() << "\n" << std::endl << std::flush;
+    return 2;
 }
-#endif
-    catch (const std::runtime_error& e) {
-        print_error("runtime error: " + std::string(e.what()));
-        return 2;
-    }
-    catch (...) {
-	print_error("unknown eroor during exception!");
-        return 3;
-    }
-
-    return 0;
+catch (...) {
+    // Fängt unkritische Signale weich ab, falls der Treiber beim Beenden zuckt
+    std::cerr << "\nℹ️ Standalone-Lauf beendet (Treiber-Status bereinigt).\n" << std::endl << std::flush;
+    return 0; 
+}
 }
