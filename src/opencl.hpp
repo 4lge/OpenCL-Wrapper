@@ -460,15 +460,20 @@ public:
     std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 3b. Linux: Starte cl::CommandQueue(ext_queue, true)..." << std::endl << std::flush;
     this->cl_queue = cl::CommandQueue(ext_queue, true);
 #endif
+    } else {
+        // Falls NULL übergeben wurde, initialisieren wir ein leeres, stummes Objekt,
+        // damit die Member-Variable im RAM sauber definiert bleibt!
+        this->cl_queue = cl::CommandQueue(); 
     }
-
     auto t_queue = std::chrono::high_resolution_clock::now();
     double d_queue = std::chrono::duration<double>(t_queue - t_base).count();
     double g_queue = std::chrono::duration<double>(t_queue - t_start).count();
     std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 4. CommandQueue gewrappt | Schritt: " << d_queue << "s | Gesamt: " << g_queue << "s" << std::endl << std::flush;
 
-    this->info.cl_context = ext_context;
-    this->info.cl_device  = ext_device;
+    // 🎯 DER NVIDIA-LINUX-GURT: Wir verpacken die rohen Handles explizit mit 'false' (do not retain)!
+    // Das macht das anschließende Kopieren auf das Klassen-Member absolut crash-sicher.
+    this->info.cl_context = cl::Context(ext_context, false);
+    this->info.cl_device  = cl::Device(ext_device, false);
 
     this->info.opencl_c_version = "3.0";
     this->info.patch_intel_gpu_above_4gb = false;

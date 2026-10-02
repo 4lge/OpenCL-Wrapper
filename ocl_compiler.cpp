@@ -162,10 +162,12 @@ int main(int argc, char* argv[]) {
             out.close();
             
             std::cout << "SUCCESS" << std::endl << std::flush;
-            std::_Exit(0);
+            //cstd::_Exit(0);
+            return(0);
         } else {
             std::cerr << "Fehler: Keine gueltigen OpenCL-Binaries vom Treiber zurueckgegeben.\n";
-            std::_Exit(1);
+            //std::_Exit(1);
+            return(1);
         }
     }
     catch (cl::Error &err) {
@@ -192,10 +194,12 @@ int main(int argc, char* argv[]) {
             std::cerr << "==================================================================\n\n";
         }
       
-        std::_Exit(1);
+        //std::_Exit(1);
+        return(1);
     }
 
-    std::_Exit(0); 
+    //std::_Exit(0); 
+    return(0);
 }
 
 // set PATH=C:\rtools45\usr\bin;C:\rtools45\x86_64-w64-mingw32.static.posix\bin;%PATH%
