@@ -504,8 +504,8 @@ public:
 #endif
 
     // Zuweisung der Kern-Wrapper (NVIDIA-sicher verpackt)
-    this->info.cl_context = cl::Context(ext_context, true); 
-    this->info.cl_device  = cl::Device(ext_device, true);
+    this->info.cl_context = cl::Context(ext_context, false); 
+    this->info.cl_device  = cl::Device(ext_device, false);
 
     // Queue-Schutzwall integrieren
     if (ext_queue != NULL && ext_queue != 0) {
