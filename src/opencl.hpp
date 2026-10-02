@@ -342,6 +342,7 @@ private:
   string math_library_path;
   bool kernel_loaded = false;
   bool kernel_compiled = false;
+
   inline string enable_device_capabilities() const { return // enable FP64/FP16 capabilities if available
       string(info.patch_nvidia_fp16         ? "\n #define cl_khr_fp16"                : "")+ // Nvidia Pascal and newer GPUs with driver>=520.00 don't report cl_khr_fp16, but do support basic FP16 arithmetic
       string(info.is_fp64_capable           ? "\n typedef double real_t;"                : "\n typedef float real_t;")+ // prepare float/double abstraction
@@ -365,6 +366,10 @@ private:
       "\n #endif"
       ;}
 public:
+  inline bool exists() const { return this->exists; }
+  inline int device_id() const { return this->device_idx; }
+  inline void device_id(int id) { this->device_idx = id; }
+
   // 🚀 DER NATIVE HARDWARE-TRANSFORMATOR (Nutzt Placement New)
   inline void initialize_hardware(const Device_Info& info) {
     // 1. Falls das Gerät schon aktiv war, rufen wir den Destruktor auf,
