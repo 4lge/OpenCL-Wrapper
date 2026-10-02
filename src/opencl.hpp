@@ -327,7 +327,7 @@ class Device {
 private:
   cl::Program cl_program;
   cl::CommandQueue cl_queue;
-  bool exists = false;
+  bool exists_ = false;
   string c_code;
   string kernel_code;
   string compiled_code;
@@ -366,15 +366,18 @@ private:
       "\n #endif"
       ;}
 public:
-  inline bool exists() const { return this->exists; }
+  inline bool exists() const { return this->exists_; }
+  inline void exists(bool state) { this->exists_ = state; }
   inline int device_id() const { return this->device_idx; }
   inline void device_id(int id) { this->device_idx = id; }
+  inline int platform_id() const { return this->platform_idx; }
+  inline void platform_id(int id) { this->platform_idx = id; }
 
   // 🚀 DER NATIVE HARDWARE-TRANSFORMATOR (Nutzt Placement New)
   inline void initialize_hardware(const Device_Info& info) {
     // 1. Falls das Gerät schon aktiv war, rufen wir den Destruktor auf,
     // um alte Kontext- und Queue-Ressourcen der vorherigen Karte sauber freizugeben.
-    if (this->exists) {
+    if (this->exists()) {
       this->~Device();
     }
 
@@ -427,7 +430,8 @@ public:
       write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>()[0][0]); // save binary (ptx file)
       #endif // PTX
     */
-    this->exists = true;
+
+    this->exists(true);
   }
 
   // 🚀 DER DEFINITIVE WINDOWS- & LINUX-RETTUNGSTRACK FÜR DEINEN FORK (MIT HIGHSPEED-TIMING):
@@ -435,7 +439,7 @@ public:
     auto t_start = std::chrono::high_resolution_clock::now();
     std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 1. Eintritt in C-API-Konstruktor..." << std::endl << std::flush;
 
-    this->exists = true;
+    this->exists_ = true;
     this->c_code = "";
     this->kernel_compiled = false;
     this->platform_idx = p_idx;
@@ -496,7 +500,7 @@ public:
   }
   // 🎯 DER DEFIINITIVE PLATTFORM-RETTER: In-Place Update ohne Kopier-Destruktor-Hölle!
   inline void update_from_handles(cl_context ext_context, cl_device_id ext_device, cl_command_queue ext_queue = NULL, int p_idx = 0, int d_idx = 0) {
-    this->exists = true;
+    this->exists(true);
     this->c_code = "";
     this->kernel_compiled = false;
     this->platform_idx = p_idx;
@@ -541,7 +545,7 @@ public:
   inline cl::Context get_cl_context() const { return info.cl_context; }
   inline cl::Program get_cl_program() const { return cl_program; }
   inline cl::CommandQueue get_cl_queue() const { return cl_queue; }
-  inline bool is_initialized() const { return exists; }
+  inline bool is_initialized() const { return exists_; }
   inline void set_c_code(const string& c_code){
     this->c_code = c_code;
   }
