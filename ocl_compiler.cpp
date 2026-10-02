@@ -57,13 +57,13 @@ int main(int argc, char* argv[]) {
     
     if (input_path.empty()) {
         print_usage();
-        std::_Exit(1);
+        return(1);
     }
 
     std::ifstream kernel_file(input_path);
     if (!kernel_file.good()) {
         std::cerr << "Fehler: Kernel-Datei konnte nicht geoeffnet werden: " << input_path << "\n";
-        std::_Exit(1);
+        return(1);
     }
     std::stringstream str_stream;
     str_stream << kernel_file.rdbuf();
@@ -90,7 +90,7 @@ int main(int argc, char* argv[]) {
         cl::Platform::get(&platforms);
         if (platform_idx >= (int)platforms.size()) {
             std::cerr << "Fehler: Plattform-Index " << platform_idx << " existiert nicht.\n";
-            std::_Exit(1);
+            return(1);
         }
         cl::Platform platform = platforms[platform_idx];
 
@@ -98,7 +98,7 @@ int main(int argc, char* argv[]) {
         platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
         if (device_idx >= (int)devices.size()) {
             std::cerr << "Fehler: Device-Index " << device_idx << " existiert nicht.\n";
-            std::_Exit(1);
+            return(1);
         }
         cl::Device device = devices[device_idx];
 
@@ -162,11 +162,9 @@ int main(int argc, char* argv[]) {
             out.close();
             
             std::cout << "SUCCESS" << std::endl << std::flush;
-            //cstd::_Exit(0);
             return(0);
         } else {
             std::cerr << "Fehler: Keine gueltigen OpenCL-Binaries vom Treiber zurueckgegeben.\n";
-            //std::_Exit(1);
             return(1);
         }
     }
@@ -194,11 +192,9 @@ int main(int argc, char* argv[]) {
             std::cerr << "==================================================================\n\n";
         }
       
-        //std::_Exit(1);
         return(1);
     }
 
-    //std::_Exit(0); 
     return(0);
 }
 
