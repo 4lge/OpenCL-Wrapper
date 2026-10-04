@@ -879,7 +879,11 @@ public:
               << std::chrono::duration<double>(t4 - t3).count() << "s" << std::endl << std::flush;
 
     this->kernel_compiled = true;
+    std::cout << "🚪 [BIN-LOAD-SUBPROFILE] >>> VERLASSE load_compiled_binary geordnet... <<<" << std::endl << std::flush;
+    std::cout << std::flush; std::cerr << std::flush;
+    fflush(stdout); fflush(stderr);
   }
+  
   // 💾 NATIVE BACKEND-METHODE FÜR DEN BYTESYNCHRONEN ELF/PTX-EXPORT
   // 💾 NATIVE, UNZERSTÖRBARE BACKEND-METHODE FÜR DEN BINÄR-EXPORT
   inline void export_compiled_binary(const std::string& binary_path) {
@@ -1035,6 +1039,12 @@ public:
 
       std::cout << "💾 [BACKEND] Neues Binary erfolgreich erzeugt. Lade Code..." << std::endl << std::flush;
       this->load_compiled_binary(binary_path);
+      
+      // 🚀 NEUE KONTROLLE: Sind wir unbeschadet zurückgekehrt?
+      std::cout << "🎉 [BACKEND-JIT] >>> ZURÜCK IM AUFRUFER! load_compiled_binary erfolgreich überlebt. <<<" << std::endl << std::flush;
+      std::cout << "🔍 [DEBUG-JIT] Status kernel_compiled: " << (this->kernel_compiled ? "TRUE" : "FALSE") << std::endl << std::flush;
+      std::cout << std::flush; std::cerr << std::flush;
+      fflush(stdout); fflush(stderr);
     }
   }
 
