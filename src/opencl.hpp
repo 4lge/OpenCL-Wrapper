@@ -100,6 +100,8 @@ struct Device_Info {
   cl::Device cl_device; // OpenCL device
   cl::Context cl_context; // multiple devices in the same context can communicate buffers
   uint id = 0u; // unique device ID assigned by get_devices()
+  int platform_idx = 0u;
+  int device_idx = 0u;
   string name="", vendor=""; // device name, vendor
   string driver_version="", opencl_c_version=""; // device driver version, device OpenCL C version ("1.0", "1.1", "1.2", "2.0", "2.1", "2.2", "3.0")
   uint memory = 0u; // global memory in MB
@@ -261,7 +263,10 @@ inline vector<Device_Info> get_devices(const bool print_info=true) { // returns 
     //cl::Context cl_context(cl_devices); // same cl::Context for all devices (allocates extra VRAM on all other unused Nvidia GPUs)
     for(uint j=0u; j<(uint)cl_devices.size(); j++) {
       cl::Context cl_context(cl_devices[j]); // separate cl::Context for each device
-      devices.push_back(Device_Info(cl_devices[j], cl_context, id++));
+      Device_Info info(cl_devices[j], cl_context, id++);
+      info.platform_idx = (int)i; // 🚀 Echter Plattform-Treiber-Index
+      info.device_idx = (int)j;   // 🚀 Echter Device-Treiber-Index
+      devices.push_back(info);      
     }
   }
   if((uint)cl_platforms.size()==0u||(uint)devices.size()==0u) {
