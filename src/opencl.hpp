@@ -396,6 +396,9 @@ public:
   }
   Device_Info info;
   inline Device(const Device_Info& info, const string& opencl_c_code=get_opencl_c_code()) {
+    auto t_start = std::chrono::high_resolution_clock::now();
+    std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 0. Eintritt in C-API-Konstruktor..." << std::endl << std::flush;
+    
     print_device_info(info);
     this->info = info;
     this->c_code = "";
@@ -413,6 +416,22 @@ public:
     // Linux und macOS nutzen weiterhin das Standard-Verhalten
     this->cl_queue = cl::CommandQueue(info.cl_context, info.cl_device); // queue to push commands for the device
 #endif
+    this->platform_idx = info.platform_idx;
+    this->device_idx = info.device_idx;
+    this->compiler_path = "./";
+    this->math_library_path = "";
+
+#ifdef _WIN32
+    this->compiler_binary = "ocl_compiler.exe";
+#else
+    this->compiler_binary = "ocl_compiler"; 
+#endif
+
+    auto t_base = std::chrono::high_resolution_clock::now();
+    double d_base = std::chrono::duration<double>(t_base - t_start).count();
+    std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 1. Basismember gesetzt | Schritt: " << d_base << "s | Gesamt: " << d_base << "s" << std::endl << std::flush;
+    
+
     // this->compile_kernel();
     /*
       cl::Program::Sources cl_source;
@@ -489,6 +508,7 @@ public:
     this->info.cl_context = cl::Context(ext_context, false);
     this->info.cl_device  = cl::Device(ext_device, false);
 
+    // FIXME:
     this->info.opencl_c_version = "3.0";
     this->info.patch_intel_gpu_above_4gb = false;
     this->info.name = "OpenCLeaR Shared Accelerator";
