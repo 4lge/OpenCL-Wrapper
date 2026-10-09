@@ -1042,6 +1042,7 @@ public:
 
       // 🎯 NUTZT DIE INTERNEN MEMBER-INDIZES: Vollkommen autonom und fehlerfrei!
       std::string compiler_cmd = full_compiler_cmd +
+        " -k " + this->get_kernel_path() +
         " -i " + source_path +
         " -c ./.cl_cache" +
         " -p " + std::to_string(this->platform_idx) +

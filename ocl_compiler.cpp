@@ -34,7 +34,7 @@ inline std::string get_opencl_c_code() {
 
 
 void print_usage() {
-    std::cout << "Verwendung: ocl_compiler [-k <kernel_path>] -i <kernel.cl> -c <cache_base_dir> -p <platform_idx> -d <device_idx> [-l <library_file.cl>]\\n";
+  std::cout << "Verwendung: ocl_compiler [-k <kernel_path>] -i <kernel.cl> -c <cache_base_dir> -p <platform_idx> -d <device_idx> [-l <library_file.cl>] [-f]" << std::endl;
 }
 
 int main(int argc, char* argv[]) {
@@ -44,6 +44,7 @@ int main(int argc, char* argv[]) {
     std::string library_file_path = ""; // 🚀 Einheitlicher Name für den Parser
     int platform_idx = 0;
     int device_idx = 0;
+    bool force_float = false; 
 
     // 🎯 Der CLI-Parser akzeptiert jetzt die Basis anstelle des Vollpfads
     for (int i = 1; i < argc; i++) {
@@ -54,6 +55,7 @@ int main(int argc, char* argv[]) {
         else if ((arg == "-d" || arg == "--device") && i + 1 < argc) device_idx = std::stoi(argv[++i]);
         else if ((arg == "-l" || arg == "--library") && i + 1 < argc) library_file_path = argv[++i]; 
         else if ((arg == "-k" || arg == "--kernel-dir") && i + 1 < argc) kernel_dir = argv[++i];
+        else if ((arg == "-f" || arg == "--force-float") && i + 1 < argc) force_float = true; 
         else if ((arg == "-h" || arg == "--help") && i + 1 < argc) print_usage();
     }
     
@@ -146,7 +148,14 @@ std::cout << "🎯 ocl_compiler nutzt Kernel-Quelle: " << kernel_path_final << s
         cl::CommandQueue queue(context, device, 0, &err);
 
         Device physx_device(context(), device(), queue());
-
+        
+        if (force_float) {
+          std::cout << "🏎️ [ocl_compiler] Zwinge Device-Info in den FLOAT-Modus (-f aktiv)!" << std::endl;
+          
+          // Wir tricksen die interne Hardware-Abfrage aus!
+          physx_device.info.is_fp64_capable = 0; 
+        }
+    
         physx_device.set_kernel_source(core_kernel);
         
         physx_device.compile_kernel("-cl-opt-disable", false);
