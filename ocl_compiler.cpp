@@ -55,7 +55,7 @@ int main(int argc, char* argv[]) {
         else if ((arg == "-d" || arg == "--device") && i + 1 < argc) device_idx = std::stoi(argv[++i]);
         else if ((arg == "-l" || arg == "--library") && i + 1 < argc) library_file_path = argv[++i]; 
         else if ((arg == "-k" || arg == "--kernel-dir") && i + 1 < argc) kernel_dir = argv[++i];
-        else if ((arg == "-f" || arg == "--force-float") && i + 1 < argc) force_float = true; 
+        else if (arg == "-f" || arg == "--force-float") force_float = true; 
         else if ((arg == "-h" || arg == "--help") && i + 1 < argc) print_usage();
     }
     
