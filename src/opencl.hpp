@@ -825,15 +825,22 @@ public:
       return res;
     };
 
-    std::string filename = "kernel";
+    std::string base_filename = "kernel";
     if (!this->kernel_name.empty()) {
       std::string raw_file = this->kernel_name;
       size_t last_dot = raw_file.find_last_of(".");
-      filename = (last_dot == std::string::npos) ? raw_file : raw_file.substr(0, last_dot);
+      base_filename = (last_dot == std::string::npos) ? raw_file : raw_file.substr(0, last_dot);
     }
 
     std::string target_dir = "./.cl_cache/" + os_label + "/" + clean_str(platform_name) + "/" + clean_str(device_name);
-    this->binary_cache_path = target_dir + "/" + filename + ".bin";
+    // 🛡️ DER UNZERSTÖRBARE DOPPEL-TUNNEL:
+    // Die JIT-DLL weiss über das Makro ganz genau, in welchem Modus sie läuft!
+#if defined(FP64_MODE) && FP64_MODE == 0
+    std::string clean_basename = base_filename + "_float";
+#else
+    std::string clean_basename = base_filename + "_double";
+#endif
+    this->binary_cache_path = target_dir + "/" + clean_basename + ".bin";
   }
 
   // 🚀 Lädt einen vorkompilierten Binär-Kernel (PTX / SPIR-V / Intel Bin)
@@ -1051,6 +1058,15 @@ public:
       if (!this->math_library_path.empty()) {
         compiler_cmd += " -l " + this->math_library_path;
       }
+
+      
+      // =========================================================================
+      // 🏎️ DET TURBO-TUNNEL: Reiche das -f Flag bitscharf an den ocl_compiler weiter!
+      // =========================================================================
+#if defined(FP64_MODE) && FP64_MODE == 0
+      compiler_cmd += " -f"; // Zwingt den ocl_compiler via CLI in den Float-Modus!
+#endif
+      
       std::cout << "🔄 [BACKEND-EXEC] " << compiler_cmd << std::endl << std::flush;
 
       int status = std::system(compiler_cmd.c_str());

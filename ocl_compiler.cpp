@@ -193,7 +193,10 @@ std::cout << "🎯 ocl_compiler nutzt Kernel-Quelle: " << kernel_path_final << s
 
         size_t last_slash = input_path.find_last_of("/\\");
         std::string raw_file = (last_slash == std::string::npos) ? input_path : input_path.substr(last_slash + 1);
-        std::string filename = raw_file.substr(0, raw_file.find_last_of("."));
+        std::string base_filename = raw_file.substr(0, raw_file.find_last_of("."));
+
+        std::string filename = base_filename + (force_float ? "_float" : "_double");
+
 
         // Hier entsteht der exakt identische Pfad wie in Rcpp
         std::string output_path = cache_base + "/" + os_label + "/" + 
