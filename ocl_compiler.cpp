@@ -5,7 +5,7 @@
 #include <sstream>
 #include <cctype>
 #include <cstdlib>
-
+#include <unistd.h> // für _exit() unter Linux
 
 #ifdef __APPLE__
   #define CL_TARGET_OPENCL_VERSION 120
@@ -34,11 +34,12 @@ inline std::string get_opencl_c_code() {
 
 
 void print_usage() {
-    std::cout << "Verwendung: ocl_compiler -i <kernel.cl> -c <cache_base_dir> -p <platform_idx> -d <device_idx> [-l <library_file.cl>]\\n";
+    std::cout << "Verwendung: ocl_compiler [-k <kernel_path>] -i <kernel.cl> -c <cache_base_dir> -p <platform_idx> -d <device_idx> [-l <library_file.cl>]\\n";
 }
 
 int main(int argc, char* argv[]) {
     std::string input_path = "";
+    std::string kernel_dir  = "";
     std::string cache_base = "./.cl_cache";
     std::string library_file_path = ""; // 🚀 Einheitlicher Name für den Parser
     int platform_idx = 0;
@@ -52,7 +53,8 @@ int main(int argc, char* argv[]) {
         else if ((arg == "-p" || arg == "--platform") && i + 1 < argc) platform_idx = std::stoi(argv[++i]);
         else if ((arg == "-d" || arg == "--device") && i + 1 < argc) device_idx = std::stoi(argv[++i]);
         else if ((arg == "-l" || arg == "--library") && i + 1 < argc) library_file_path = argv[++i]; 
-        else if ((arg == "-h" || arg == "--help") && i + 1 < argc) print_usage(); 
+        else if ((arg == "-k" || arg == "--kernel-dir") && i + 1 < argc) kernel_dir = argv[++i];
+        else if ((arg == "-h" || arg == "--help") && i + 1 < argc) print_usage();
     }
     
     if (input_path.empty()) {
@@ -60,9 +62,46 @@ int main(int argc, char* argv[]) {
         return(1);
     }
 
-    std::ifstream kernel_file(input_path);
+std::string kernel_file_name = input_path; // Nur der Name (z.B. "distance.cl")
+std::string kernel_dir_path  = kernel_dir;  // Übergeben via -k (z.B. aus system.file)
+std::string kernel_path_final = "";
+
+// 🚀 1. STRIKTE PFAD-WEICHE FÜR DEN KERNEL IN C++
+bool starts_with_dot = (kernel_file_name.rfind("./", 0) == 0 || kernel_file_name.rfind(".\\", 0) == 0);
+
+if (starts_with_dot) {
+    // Fall A: Anwender fordert EXPLIZIT die lokale Datei im Arbeitsverzeichnis
+    std::ifstream test_file(kernel_file_name);
+    if (test_file.good()) {
+        kernel_path_final = kernel_file_name;
+    } else {
+        std::cerr << "💥 [ocl_compiler] Explizit angeforderte lokale Kernel-Datei nicht gefunden: " << kernel_file_name << std::endl;
+        _exit(1);
+    }
+} else {
+    // Fall B: Lokale Prüfung im Arbeitsverzeichnis zuerst (Fallback für lokale Skripte)
+    std::ifstream local_file(kernel_file_name);
+    if (local_file.good()) {
+        kernel_path_final = kernel_file_name;
+    } else {
+        // Fall C: Standard-Suche im übergebenen Installations-Ordner 'kernel' (-k Schalter)
+        std::string fallback_path = kernel_dir_path + "/" + kernel_file_name;
+        std::ifstream package_file(fallback_path);
+        if (package_file.good()) {
+            kernel_path_final = fallback_path;
+        } else {
+            std::cerr << "💥 [ocl_compiler] Kernel-Datei weder lokal noch unter " << fallback_path << " gefunden!" << std::endl;
+            _exit(1);
+        }
+    }
+}
+
+// 🚀 2. AB JETZT ARBEITET DER COMPILER MIT DEM BESTÄTIGTEN REIN-PFAD:
+std::cout << "🎯 ocl_compiler nutzt Kernel-Quelle: " << kernel_path_final << std::endl;
+
+    std::ifstream kernel_file(kernel_path_final);
     if (!kernel_file.good()) {
-        std::cerr << "Fehler: Kernel-Datei konnte nicht geoeffnet werden: " << input_path << "\n";
+        std::cerr << "Fehler: Kernel-Datei konnte nicht geoeffnet werden: " << kernel_path_final << "\n";
         return(1);
     }
     std::stringstream str_stream;
