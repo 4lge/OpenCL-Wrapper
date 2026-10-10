@@ -348,16 +348,13 @@ private:
   bool kernel_loaded = false;
   bool kernel_compiled = false;
 
-  inline string enable_device_capabilities() const { 
-      // 🚀 1. PLATTFORM-DETEKTION ZUR LAUFZEIT
-      // Wir holen uns den rohen Plattform-Namen direkt aus dem OpenCL-Geräte-Handle
+    inline string enable_device_capabilities() const { 
       cl::Platform plat(info.cl_device.getInfo<CL_DEVICE_PLATFORM>());
       std::string platform_name = plat.getInfo<CL_PLATFORM_NAME>();
       
       bool is_amd = (platform_name.find("AMD") != std::string::npos) || 
                     (platform_name.find("Advanced Micro Devices") != std::string::npos);
 
-      // 🚀 2. BASIS-EINSTELLUNGEN ZUSAMMENBAUEN (Dein funktionierender Original-Code)
       std::string header = 
       string(info.patch_nvidia_fp16         ? "\n #define cl_khr_fp16"                : "")+ 
       string(info.is_fp64_capable           ? "\n typedef double real_t;"                : "\n typedef float real_t;")+ 
@@ -371,31 +368,33 @@ private:
       string(info.is_dp4a_capable==0u       ? "\n #undef __opencl_c_integer_dot_product_input_4x8bit\n #undef __opencl_c_integer_dot_product_input_4x8bit_packed" : "")+ 
       "\n #define cl_workgroup_size "+to_string(WORKGROUP_SIZE)+"u";
 
-      // 🚀 3. DIE BITSCHARFE EXTENSION-WEICHE FÜR AMD / STRIX HALO
-      if (info.is_fp64_capable) {
-          if (is_amd) {
-              // 🛡️ AMD-RETTUNG: Wir definieren die Core-Makros, 
-              // überspringen aber das Pragma, das LLVM/ROCm zum Absturz bringt!
-              header += "\n #define __opencl_c_fp64 1";
-              header += "\n #define cl_khr_fp64 1";
-          } else {
-              // Klassischer Pfad für NVIDIA und Intel
+      // 🛡️ REINE EXPLICIT-MAKRO-WELT FÜR AMD
+      if (is_amd) {
+          if (info.is_fp64_capable) {
+            header += "\n";
+          }
+          // Für AMD injizieren wir keine Pragmas! Alle Erweiterungen werden weggelassen.
+      } else {
+          // ===================================================================
+          // STANDARD-PFAD FÜR NVIDIA / INTEL (Nutzt die klassischen Extensions)
+          // ===================================================================
+          if (info.is_fp64_capable) {
               header += "\n #ifdef cl_khr_fp64";
               header += "\n #pragma OPENCL EXTENSION cl_khr_fp64 : enable";
               header += "\n #endif";
           }
+          header += "\n #ifdef cl_khr_fp16";
+          header += "\n #pragma OPENCL EXTENSION cl_khr_fp16 : enable";
+          header += "\n #endif";
+          header += "\n #ifdef cl_khr_int64_base_atomics";
+          header += "\n #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable";
+          header += "\n #endif";
       }
 
-      // Restliche unkritische Pragmas anhängen
-      header += "\n #ifdef cl_khr_fp16";
-      header += "\n #pragma OPENCL EXTENSION cl_khr_fp16 : enable";
-      header += "\n #endif";
-      header += "\n #ifdef cl_khr_int64_base_atomics";
-      header += "\n #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable";
-      header += "\n #endif\n";
-
+      header += "\n";
       return header;
   }
+
 public:
   inline bool exists() const { return this->exists_; }
   inline void exists(bool state) { this->exists_ = state; }

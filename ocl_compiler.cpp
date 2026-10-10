@@ -42,6 +42,7 @@ int main(int argc, char* argv[]) {
     std::string kernel_dir  = "";
     std::string cache_base = "./.cl_cache";
     std::string library_file_path = ""; // 🚀 Einheitlicher Name für den Parser
+    std::string build_opts = ""; // 🚀 NEU: Sammelt die Treiber-Optionen!
     int platform_idx = 0;
     int device_idx = 0;
     bool force_float = false; 
@@ -55,7 +56,13 @@ int main(int argc, char* argv[]) {
         else if ((arg == "-d" || arg == "--device") && i + 1 < argc) device_idx = std::stoi(argv[++i]);
         else if ((arg == "-l" || arg == "--library") && i + 1 < argc) library_file_path = argv[++i]; 
         else if ((arg == "-k" || arg == "--kernel-dir") && i + 1 < argc) kernel_dir = argv[++i];
+        else if ((arg == "-o" || arg == "--options") && i + 1 < argc) build_opts = argv[++i]; // 🔥 GEFANGEN!
         else if (arg == "-f" || arg == "--force-float") force_float = true; 
+       // 🔥 DEIN VERBOSE-TOGGLE AUS R GREIFT NUN AUCH IM STANDALONE-COMPILER!
+        else if (arg == "-v" || arg == "--verbose") {
+            get_opencl_print_enabled() = true; 
+            std::cout << "🔍 [ocl_compiler] Maximaler Verbose-Modus via CLI aktiviert!" << std::endl;
+        }
         else if ((arg == "-h" || arg == "--help") && i + 1 < argc) print_usage();
     }
     
@@ -164,7 +171,7 @@ std::cout << "🎯 ocl_compiler nutzt Kernel-Quelle: " << kernel_path_final << s
         physx_device.set_kernel_source(core_kernel);
         
         // physx_device.compile_kernel("-cl-opt-disable", false);
-        physx_device.compile_kernel("", false);
+        physx_device.compile_kernel(build_opts, false);
 
         // Handle für den catch-Block sichern
         cl_program = physx_device.get_cl_program();
