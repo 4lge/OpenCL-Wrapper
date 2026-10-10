@@ -20,7 +20,6 @@
   #define CL_HPP_ENABLE_EXCEPTIONS
 #endif
  
-
 // 🎯 DIE GLOBALE SPEICHER-VARIABLE FÜR DIE LIBRARAY
 static std::string global_math_library_code = "\n";
 
@@ -32,22 +31,28 @@ inline std::string get_opencl_c_code() {
 #include "src/OpenCL/include/CL/opencl.hpp"
 #include "src/opencl.hpp"
 
-
 void print_usage() {
-  std::cout << "Verwendung: ocl_compiler [-k <kernel_path>] -i <kernel.cl> -c <cache_base_dir> -p <platform_idx> -d <device_idx> [-l <library_file.cl>] [-f]" << std::endl;
+  std::cout << "Verwendung: ocl_compiler [-k <kernel_path>] -i <kernel.cl> -c <cache_base_dir> "
+            << "-p <platform_idx> -d <device_idx> [-P <platform_name>] [-D <device_name>] "
+            << "[-l <library_file.cl>] [-f] [-o <options>] [-v]" << std::endl;
 }
 
 int main(int argc, char* argv[]) {
     std::string input_path = "";
     std::string kernel_dir  = "";
     std::string cache_base = "./.cl_cache";
-    std::string library_file_path = ""; // 🚀 Einheitlicher Name für den Parser
-    std::string build_opts = ""; // 🚀 NEU: Sammelt die Treiber-Optionen!
+    std::string library_file_path = ""; 
+    std::string build_opts = ""; 
+    
+    // 🚀 HIER SIND DEINE NEUEN STRATEGISCHEN TUNNEL-ARGUMENTE:
+    std::string rcpp_platform_name = "";
+    std::string rcpp_device_name = "";
+
     int platform_idx = 0;
     int device_idx = 0;
     bool force_float = false; 
 
-    // 🎯 Der CLI-Parser akzeptiert jetzt die Basis anstelle des Vollpfads
+    // 🎯 Der CLI-Parser fängt alle Argumente blockfrei ab
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if ((arg == "-i" || arg == "--input") && i + 1 < argc) input_path = argv[++i];
@@ -56,14 +61,18 @@ int main(int argc, char* argv[]) {
         else if ((arg == "-d" || arg == "--device") && i + 1 < argc) device_idx = std::stoi(argv[++i]);
         else if ((arg == "-l" || arg == "--library") && i + 1 < argc) library_file_path = argv[++i]; 
         else if ((arg == "-k" || arg == "--kernel-dir") && i + 1 < argc) kernel_dir = argv[++i];
-        else if ((arg == "-o" || arg == "--options") && i + 1 < argc) build_opts = argv[++i]; // 🔥 GEFANGEN!
+        else if ((arg == "-o" || arg == "--options") && i + 1 < argc) build_opts = argv[++i]; 
+        
+        // 🔥 ERWEITERUNG: Rcpp Tunnel-Eingänge abfangen!
+        else if ((arg == "-P" || arg == "--platform-name") && i + 1 < argc) rcpp_platform_name = argv[++i];
+        else if ((arg == "-D" || arg == "--device-name") && i + 1 < argc) rcpp_device_name = argv[++i];
+        
         else if (arg == "-f" || arg == "--force-float") force_float = true; 
-       // 🔥 DEIN VERBOSE-TOGGLE AUS R GREIFT NUN AUCH IM STANDALONE-COMPILER!
         else if (arg == "-v" || arg == "--verbose") {
             get_opencl_print_enabled() = true; 
             std::cout << "🔍 [ocl_compiler] Maximaler Verbose-Modus via CLI aktiviert!" << std::endl;
         }
-        else if ((arg == "-h" || arg == "--help") && i + 1 < argc) print_usage();
+        else if ((arg == "-h" || arg == "--help")) print_usage();
     }
     
     if (input_path.empty()) {
@@ -71,42 +80,38 @@ int main(int argc, char* argv[]) {
         return(1);
     }
 
-std::string kernel_file_name = input_path; // Nur der Name (z.B. "distance.cl")
-std::string kernel_dir_path  = kernel_dir;  // Übergeben via -k (z.B. aus system.file)
-std::string kernel_path_final = "";
+    std::string kernel_file_name = input_path; 
+    std::string kernel_dir_path  = kernel_dir;  
+    std::string kernel_path_final = "";
 
-// 🚀 1. STRIKTE PFAD-WEICHE FÜR DEN KERNEL IN C++
-bool starts_with_dot = (kernel_file_name.rfind("./", 0) == 0 || kernel_file_name.rfind(".\\", 0) == 0);
+    // 🚀 STRIKTE PFAD-WEICHE FÜR DEN KERNEL IN C++
+    bool starts_with_dot = (kernel_file_name.rfind("./", 0) == 0 || kernel_file_name.rfind(".\\", 0) == 0);
 
-if (starts_with_dot) {
-    // Fall A: Anwender fordert EXPLIZIT die lokale Datei im Arbeitsverzeichnis
-    std::ifstream test_file(kernel_file_name);
-    if (test_file.good()) {
-        kernel_path_final = kernel_file_name;
-    } else {
-        std::cerr << "💥 [ocl_compiler] Explizit angeforderte lokale Kernel-Datei nicht gefunden: " << kernel_file_name << std::endl;
-        _exit(1);
-    }
-} else {
-    // Fall B: Lokale Prüfung im Arbeitsverzeichnis zuerst (Fallback für lokale Skripte)
-    std::ifstream local_file(kernel_file_name);
-    if (local_file.good()) {
-        kernel_path_final = kernel_file_name;
-    } else {
-        // Fall C: Standard-Suche im übergebenen Installations-Ordner 'kernel' (-k Schalter)
-        std::string fallback_path = kernel_dir_path + "/" + kernel_file_name;
-        std::ifstream package_file(fallback_path);
-        if (package_file.good()) {
-            kernel_path_final = fallback_path;
+    if (starts_with_dot) {
+        std::ifstream test_file(kernel_file_name);
+        if (test_file.good()) {
+            kernel_path_final = kernel_file_name;
         } else {
-            std::cerr << "💥 [ocl_compiler] Kernel-Datei weder lokal noch unter " << fallback_path << " gefunden!" << std::endl;
+            std::cerr << "💥 [ocl_compiler] Explizit angeforderte lokale Kernel-Datei nicht gefunden: " << kernel_file_name << std::endl;
             _exit(1);
         }
+    } else {
+        std::ifstream local_file(kernel_file_name);
+        if (local_file.good()) {
+            kernel_path_final = kernel_file_name;
+        } else {
+            std::string fallback_path = kernel_dir_path + "/" + kernel_file_name;
+            std::ifstream package_file(fallback_path);
+            if (package_file.good()) {
+                kernel_path_final = fallback_path;
+            } else {
+                std::cerr << "💥 [ocl_compiler] Kernel-Datei weder lokal noch unter " << fallback_path << " gefunden!" << std::endl;
+                _exit(1);
+            }
+        }
     }
-}
 
-// 🚀 2. AB JETZT ARBEITET DER COMPILER MIT DEM BESTÄTIGTEN REIN-PFAD:
-std::cout << "🎯 ocl_compiler nutzt Kernel-Quelle: " << kernel_path_final << std::endl;
+    std::cout << "🎯 ocl_compiler nutzt Kernel-Quelle: " << kernel_path_final << std::endl;
 
     std::ifstream kernel_file(kernel_path_final);
     if (!kernel_file.good()) {
@@ -117,8 +122,7 @@ std::cout << "🎯 ocl_compiler nutzt Kernel-Quelle: " << kernel_path_final << s
     str_stream << kernel_file.rdbuf();
     std::string core_kernel = str_stream.str();
     kernel_file.close();
-    // 🚀 2. NEU: Optionale Math-Library einlesen (falls übergeben)
-    std::string math_library_code = "";
+
     if (!library_file_path.empty()) {
         std::ifstream lib_file(library_file_path);
         if (lib_file.good()) {
@@ -130,9 +134,44 @@ std::cout << "🎯 ocl_compiler nutzt Kernel-Quelle: " << kernel_path_final << s
             std::cerr << "⚠️ Warnung: Math-Library '" << library_file_path << "' konnte nicht geoeffnet werden! Fahre ohne fort.\n";
         }
     }
-    // 🎯 ÄUẞERE VARIABLEN: Für den catch-Scope sichtbar herausgezogen!
+
+    // =========================================================================
+    // 🎯 OS- UND ARCH-LABELS
+    // =========================================================================
+    std::string os_label = "unknown";
+    std::string arch_label = "x86_64";
+#if defined(__x86_64__) || defined(_M_X64)
+    arch_label = "x86_64";
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    arch_label = "arm64";
+#endif
+
+#if defined(_WIN32)
+    os_label = "windows_" + arch_label;
+#elif defined(__APPLE__)
+    os_label = "macos_" + arch_label;
+#elif defined(__linux__)
+    os_label = "linux_" + arch_label;
+#endif
+
+    auto clean_str = [](std::string s) {
+        std::string res = "";
+        for (char c : s) {
+            if (std::isalnum(c)) res += std::tolower(c);
+            else if (c == ' ' || c == '-' || c == '_') res += '_';
+        }
+        return res;
+    };
+
+    size_t last_slash = input_path.find_last_of("/\\");
+    std::string raw_file = (last_slash == std::string::npos) ? input_path : input_path.substr(last_slash + 1);
+    std::string base_filename = raw_file.substr(0, raw_file.find_last_of("."));
+    std::string filename = base_filename + (force_float ? "_float" : "_double");
+
+    // 🎯 ÄUẞERE VARIABLEN: Für den Scope sichtbar herausgezogen
     cl::Device device;
     cl::Program cl_program;
+    std::string output_path = "";
     try {
         std::vector<cl::Platform> platforms;
         cl::Platform::get(&platforms);
@@ -148,94 +187,114 @@ std::cout << "🎯 ocl_compiler nutzt Kernel-Quelle: " << kernel_path_final << s
             std::cerr << "Fehler: Device-Index " << device_idx << " existiert nicht.\n";
             return(1);
         }
-        cl::Device device = devices[device_idx];
+        device = devices[device_idx];
 
         cl::Context context(device);
         cl_int err = 0;
         cl::CommandQueue queue(context, device, 0, &err);
 
-        Device physx_device(context(), device(), queue());
+        // 🎯 1. STRATEGISCHE PFAD-DECISION:
+        // Haben wir explizite Namen aus Rcpp diktiert bekommen? Wenn ja, nutzen wir sie bitscharf!
+        std::string final_platform_folder = rcpp_platform_name.empty() ? clean_str(platform.getInfo<CL_PLATFORM_NAME>()) : rcpp_platform_name;
+        std::string final_device_folder   = rcpp_device_name.empty()   ? clean_str(device.getInfo<CL_DEVICE_NAME>())   : rcpp_device_name;
+
+        // Hier entsteht der absolut synchrone Zielpfad
+        output_path = cache_base + "/" + os_label + "/" + 
+                      final_platform_folder + "/" + 
+                      final_device_folder + "/" + 
+                      filename + ".bin";
+
+        std::string platform_name = platform.getInfo<CL_PLATFORM_NAME>();
+        std::string platform_lower = "";
+        for (char c : platform_name) platform_lower += std::tolower(c);
+        
+        bool is_amd = (platform_lower.find("amd") != std::string::npos);
+        bool is_cpu = (device.getInfo<CL_DEVICE_TYPE>() == CL_DEVICE_TYPE_CPU);
 
         // =========================================================================
-        // 🛡️ DYNAMISCHE AMD- UND FLOAT-WEICHE IM TREIBER-RAM
+        // 🚀 DER PROAKTIVE AMD-GPU SONDERWEG (Jetzt 100% gekoppelt an Rcpp!)
         // =========================================================================
-        
+        if (is_amd && !is_cpu) {
+            std::cout << "🏎️ [ocl_compiler] AMD GPU erkannt (Ordner-Target: " << final_device_folder << ")!" << std::endl;
+            std::cout << "🛡️ Schalte proaktiv auf den AMD-Clang-Offline-Tunnel um..." << std::endl;
+
+            // 🚀 AUTOMATISCHER ORDNER-ERZEUGER (Verhindert 'No such file or directory')
+            size_t final_slash = output_path.find_last_of("/\\");
+            if (final_slash != std::string::npos) {
+                std::string target_dir = output_path.substr(0, final_slash);
+                std::string mkdir_cmd = "mkdir -p " + target_dir;
+                std::system(mkdir_cmd.c_str()); 
+            }
+
+            // Vollständigen OpenCL-C Quelltext im RAM emulieren
+            std::string tmp_cl_source = cache_base + "/amd_temp_jit.cl";
+            std::ofstream tmp_out(tmp_cl_source);
+            
+            tmp_out << "#define cl_workgroup_size 64u\n"
+                    << (force_float ? "typedef float real_t;\n" : "typedef double real_t;\n")
+                    << "typedef " << (force_float ? "float2" : "double2") << " real2_t;\n"
+                    << "typedef " << (force_float ? "float3" : "double3") << " real3_t;\n"
+                    << "typedef " << (force_float ? "float4" : "double4") << " real4_t;\n"
+                    << "typedef " << (force_float ? "float8" : "double8") << " real8_t;\n"
+                    << global_math_library_code << "\n" << core_kernel;
+            tmp_out.close();
+
+            // Kommandozeile für das native AMD-Compiler-Frontend (Target wird aus Rcpp-Vorgabe gefüttert!)
+            std::string clang_cmd = "/opt/rocm/llvm/bin/clang -x cl -cl-std=CL2.0 "
+                                    "-target amdgcn-amd-amdhsa -mcpu=" + final_device_folder + " "
+                                    "-c " + tmp_cl_source + " -o " + output_path;
+
+            std::cout << "🔄 [BACKEND-EXEC] " << clang_cmd << std::endl;
+            
+            int exit_code = std::system(clang_cmd.c_str());
+            std::remove(tmp_cl_source.c_str()); // Temporäre Quelltext-Leiche löschen
+
+            if (exit_code == 0) {
+                std::cout << "🎉 [ocl_compiler] Proaktiver AMD-Clang-Build erfolgreich!" << std::endl;
+                std::cout << "SUCCESS" << std::endl << std::flush;
+                _exit(0); 
+            } else {
+                std::cerr << "💥 Fehler: Proaktiver AMD-Clang-Build fehlgeschlagen mit Code: " << exit_code << std::endl;
+                return(1);
+            }
+        }
+
+        // =========================================================================
+        // STANDARD-PFAD (Für Nvidia, Intel GPU, Intel CPU und AMD CPU via PoCL)
+        // =========================================================================
+        Device physx_device(context(), device(), queue());
+
         if (force_float) {
           std::cout << "🏎️ [ocl_compiler] Zwinge Device-Info in den FLOAT-Modus (-f aktiv)!" << std::endl;
-          
-          // Wir tricksen die interne Hardware-Abfrage aus!
           physx_device.info.is_fp64_capable = 0; 
         } 
     
-    
         physx_device.set_kernel_source(core_kernel);
-        
-        // physx_device.compile_kernel("-cl-opt-disable", false);
         physx_device.compile_kernel(build_opts, false);
 
-        // Handle für den catch-Block sichern
         cl_program = physx_device.get_cl_program();
 
-        // 🎯 LOGISCHE RESTRUKTURIERUNG DES OUTPUTS:
-        // Der Compiler baut sich seinen Zielpfad jetzt vollkommen autonom zusammen!
+        // Falls wir nicht im AMD Sonderweg waren, stellen wir sicher, dass Ordner existieren
+        size_t final_slash = output_path.find_last_of("/\\");
+        if (final_slash != std::string::npos) {
+            std::string target_dir = output_path.substr(0, final_slash);
+            std::string mkdir_cmd = "mkdir -p " + target_dir;
+            std::system(mkdir_cmd.c_str()); 
+        }
 
-  std::string os_label = "unknown";
-        std::string arch_label = "x86_64";
-    #if defined(__x86_64__) || defined(_M_X64)
-        arch_label = "x86_64";
-    #elif defined(__aarch64__) || defined(_M_ARM64)
-        arch_label = "arm64";
-    #endif
-
-    #if defined(_WIN32)
-        os_label = "windows_" + arch_label;
-    #elif defined(__APPLE__)
-        os_label = "macos_" + arch_label;
-    #elif defined(__linux__)
-        os_label = "linux_" + arch_label;
-    #endif
-
-        auto clean_str = [](std::string s) {
-            std::string res = "";
-            for (char c : s) {
-                if (std::isalnum(c)) res += std::tolower(c);
-                else if (c == ' ' || c == '-' || c == '_') res += '_';
-            }
-            return res;
-        };
-
-        size_t last_slash = input_path.find_last_of("/\\");
-        std::string raw_file = (last_slash == std::string::npos) ? input_path : input_path.substr(last_slash + 1);
-        std::string base_filename = raw_file.substr(0, raw_file.find_last_of("."));
-
-        std::string filename = base_filename + (force_float ? "_float" : "_double");
-
-
-        // Hier entsteht der exakt identische Pfad wie in Rcpp
-        std::string output_path = cache_base + "/" + os_label + "/" + 
-                                  clean_str(platform.getInfo<CL_PLATFORM_NAME>()) + "/" + 
-                                  clean_str(device.getInfo<CL_DEVICE_NAME>()) + "/" + 
-                                  filename + ".bin";
-
-        // 🎯 FIX: Korrekter Zugriff auf das Khronos-Vektor-Layout [0]
         auto bin_data = cl_program.getInfo<CL_PROGRAM_BINARIES>();
-        if (!bin_data.empty() && bin_data[0].size() > 0) {
+        if (!bin_data.empty() && bin_data.size() > 0) {
             std::ofstream out(output_path, std::ios::binary | std::ios::out);
-            // Greift gezielt auf das Byte-Array des primären Geräts zu [0]
-            out.write(reinterpret_cast<const char*>(bin_data[0].data()), bin_data[0].size());
+            out.write(reinterpret_cast<const char*>(bin_data.data()), bin_data.size());
             out.close();
             
-            // 🎯 1. STREAMS GARANTIERT LEEREN, damit R das 'SUCCESS' verlässlich liest!
             std::cout << "SUCCESS" << std::endl << std::flush;
             std::cerr << std::flush;
             
-            // 🛡️ 2. DER CHIRURGISCHE ONEAPI / POCL CPU-CRASH-PROTECTOR:
-            // Nur unter Linux/Mac schneiden wir dem unsauberen LLVM-CPU-Treiber das Wort ab,
-            // BEVOR er beim Destruktor-Aufräumen das SIGABRT (Code 34304) werfen kann.
             #ifndef _WIN32
-              _exit(0); // Beendet den Prozess sofort blockfrei auf Kernel-Ebene
+              _exit(0); 
             #else
-              return(0); // Windows hat kein PoCL-LLVM-Referenzproblem und läuft mit return stabil
+              return(0); 
             #endif
         } else {
             std::cerr << "Fehler: Keine gueltigen OpenCL-Binaries vom Treiber zurueckgegeben.\n" << std::flush;
@@ -269,7 +328,3 @@ std::cout << "🎯 ocl_compiler nutzt Kernel-Quelle: " << kernel_path_final << s
 
     return(0);
 }
-
-
-// set PATH=C:\rtools45\usr\bin;C:\rtools45\x86_64-w64-mingw32.static.posix\bin;%PATH%
-// g++ -O2 ocl_compiler.cpp -o ocl_compiler.exe -I./ -I./src/OpenCL/include -L./src/OpenCL/lib -lOpenCL
