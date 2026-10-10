@@ -240,9 +240,10 @@ int main(int argc, char* argv[]) {
             tmp_out.close();
 
             // Kommandozeile für das native AMD-Compiler-Frontend (Target wird aus Rcpp-Vorgabe gefüttert!)
-            std::string clang_cmd = "/opt/rocm/llvm/bin/clang -x cl -cl-std=CL2.0 "
-                                    "-target amdgcn-amd-amdhsa -mcpu=" + final_device_folder + " "
-                                    "-c " + tmp_cl_source + " -o " + output_path;
+            std::string clang_cmd = "/opt/rocm/llvm/bin/clang -x cl -cl-std=CL2.0 " 
+                                    "-Xclang -finclude-default-header " 
+                                    "-target amdgcn-amd-amdhsa -mcpu=" + final_device_folder + 
+                                    " " + tmp_cl_source + " -o " + output_path;
 
             std::cout << "🔄 [BACKEND-EXEC] " << clang_cmd << std::endl;
             
