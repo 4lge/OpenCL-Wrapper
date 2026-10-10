@@ -212,16 +212,24 @@ std::cout << "🎯 ocl_compiler nutzt Kernel-Quelle: " << kernel_path_final << s
             out.write(reinterpret_cast<const char*>(bin_data[0].data()), bin_data[0].size());
             out.close();
             
+            // 🎯 1. STREAMS GARANTIERT LEEREN, damit R das 'SUCCESS' verlässlich liest!
             std::cout << "SUCCESS" << std::endl << std::flush;
-            return(0);
+            std::cerr << std::flush;
+            
+            // 🛡️ 2. DER CHIRURGISCHE ONEAPI / POCL CPU-CRASH-PROTECTOR:
+            // Nur unter Linux/Mac schneiden wir dem unsauberen LLVM-CPU-Treiber das Wort ab,
+            // BEVOR er beim Destruktor-Aufräumen das SIGABRT (Code 34304) werfen kann.
+            #ifndef _WIN32
+              _exit(0); // Beendet den Prozess sofort blockfrei auf Kernel-Ebene
+            #else
+              return(0); // Windows hat kein PoCL-LLVM-Referenzproblem und läuft mit return stabil
+            #endif
         } else {
-            std::cerr << "Fehler: Keine gueltigen OpenCL-Binaries vom Treiber zurueckgegeben.\n";
+            std::cerr << "Fehler: Keine gueltigen OpenCL-Binaries vom Treiber zurueckgegeben.\n" << std::flush;
             return(1);
         }
     }
     catch (cl::Error &err) {
-      //        std::cerr << "OpenCL CLI-Compiler Fehler: " << err.what() << " (" << err.err() << ")\n";
-        
         if (err.err() == CL_BUILD_PROGRAM_FAILURE && device() != nullptr) {
             std::cerr << "\n=================== NATIVE OPENCL COMPILER LOG ===================\n";
             try {
@@ -240,7 +248,7 @@ std::cout << "🎯 ocl_compiler nutzt Kernel-Quelle: " << kernel_path_final << s
                     std::cerr << raw_log.data() << "\n";
                 }
             }
-            std::cerr << "==================================================================\n\n";
+            std::cerr << "==================================================================\n\n" << std::flush;
         }
       
         return(1);
@@ -248,6 +256,7 @@ std::cout << "🎯 ocl_compiler nutzt Kernel-Quelle: " << kernel_path_final << s
 
     return(0);
 }
+
 
 // set PATH=C:\rtools45\usr\bin;C:\rtools45\x86_64-w64-mingw32.static.posix\bin;%PATH%
 // g++ -O2 ocl_compiler.cpp -o ocl_compiler.exe -I./ -I./src/OpenCL/include -L./src/OpenCL/lib -lOpenCL
