@@ -348,28 +348,54 @@ private:
   bool kernel_loaded = false;
   bool kernel_compiled = false;
 
-  inline string enable_device_capabilities() const { return // enable FP64/FP16 capabilities if available
-      string(info.patch_nvidia_fp16         ? "\n #define cl_khr_fp16"                : "")+ // Nvidia Pascal and newer GPUs with driver>=520.00 don't report cl_khr_fp16, but do support basic FP16 arithmetic
-      string(info.is_fp64_capable           ? "\n typedef double real_t;"                : "\n typedef float real_t;")+ // prepare float/double abstraction
+  inline string enable_device_capabilities() const { 
+      // 🚀 1. PLATTFORM-DETEKTION ZUR LAUFZEIT
+      // Wir holen uns den rohen Plattform-Namen direkt aus dem OpenCL-Geräte-Handle
+      cl::Platform plat(info.cl_device.getInfo<CL_DEVICE_PLATFORM>());
+      std::string platform_name = plat.getInfo<CL_PLATFORM_NAME>();
+      
+      bool is_amd = (platform_name.find("AMD") != std::string::npos) || 
+                    (platform_name.find("Advanced Micro Devices") != std::string::npos);
+
+      // 🚀 2. BASIS-EINSTELLUNGEN ZUSAMMENBAUEN (Dein funktionierender Original-Code)
+      std::string header = 
+      string(info.patch_nvidia_fp16         ? "\n #define cl_khr_fp16"                : "")+ 
+      string(info.is_fp64_capable           ? "\n typedef double real_t;"                : "\n typedef float real_t;")+ 
       string(info.is_fp64_capable           ? "\n typedef double2 real2_t;"                : "\n typedef float2 real2_t;")+
       string(info.is_fp64_capable           ? "\n typedef double3 real3_t;"                : "\n typedef float3 real3_t;")+
       string(info.is_fp64_capable           ? "\n typedef double4 real4_t;"                : "\n typedef float4 real4_t;")+
       string(info.is_fp64_capable           ? "\n typedef double8 real8_t;"                : "\n typedef float8 real8_t;")+
-      string(info.patch_legacy_gpu_fma      ? "\n #define fma(a, b, c) ((a)*(b)+(c))" : "")+ // some old GPUs have terrible fma performance, so replace with a*b+c
-      string(info.intel_compute_capability  ? "\n #define cl_intel_compute_capability "+to_string(info.intel_compute_capability) : "")+ // allows querying Intel compute capability
-      string(info.nvidia_compute_capability ? "\n #define cl_nv_compute_capability "+to_string(info.nvidia_compute_capability) : "")+ // allows querying Nvidia compute capability for inline PTX
-      string(info.is_dp4a_capable==0u       ? "\n #undef __opencl_c_integer_dot_product_input_4x8bit\n #undef __opencl_c_integer_dot_product_input_4x8bit_packed" : "")+ // patch false dp4a reporting on Intel
-      "\n #define cl_workgroup_size "+to_string(WORKGROUP_SIZE)+"u"
-      "\n #ifdef cl_khr_fp64"
-      "\n #pragma OPENCL EXTENSION cl_khr_fp64 : enable" // make sure cl_khr_fp64 extension is enabled
-      "\n #endif"
-      "\n #ifdef cl_khr_fp16"
-      "\n #pragma OPENCL EXTENSION cl_khr_fp16 : enable" // make sure cl_khr_fp16 extension is enabled
-      "\n #endif"
-      "\n #ifdef cl_khr_int64_base_atomics"
-      "\n #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable" // make sure cl_khr_int64_base_atomics extension is enabled
-      "\n #endif"
-      ;}
+      string(info.patch_legacy_gpu_fma      ? "\n #define fma(a, b, c) ((a)*(b)+(c))" : "")+ 
+      string(info.intel_compute_capability  ? "\n #define cl_intel_compute_capability "+to_string(info.intel_compute_capability) : "")+ 
+      string(info.nvidia_compute_capability ? "\n #define cl_nv_compute_capability "+to_string(info.nvidia_compute_capability) : "")+ 
+      string(info.is_dp4a_capable==0u       ? "\n #undef __opencl_c_integer_dot_product_input_4x8bit\n #undef __opencl_c_integer_dot_product_input_4x8bit_packed" : "")+ 
+      "\n #define cl_workgroup_size "+to_string(WORKGROUP_SIZE)+"u";
+
+      // 🚀 3. DIE BITSCHARFE EXTENSION-WEICHE FÜR AMD / STRIX HALO
+      if (info.is_fp64_capable) {
+          if (is_amd) {
+              // 🛡️ AMD-RETTUNG: Wir definieren die Core-Makros, 
+              // überspringen aber das Pragma, das LLVM/ROCm zum Absturz bringt!
+              header += "\n #define __opencl_c_fp64 1";
+              header += "\n #define cl_khr_fp64 1";
+          } else {
+              // Klassischer Pfad für NVIDIA und Intel
+              header += "\n #ifdef cl_khr_fp64";
+              header += "\n #pragma OPENCL EXTENSION cl_khr_fp64 : enable";
+              header += "\n #endif";
+          }
+      }
+
+      // Restliche unkritische Pragmas anhängen
+      header += "\n #ifdef cl_khr_fp16";
+      header += "\n #pragma OPENCL EXTENSION cl_khr_fp16 : enable";
+      header += "\n #endif";
+      header += "\n #ifdef cl_khr_int64_base_atomics";
+      header += "\n #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable";
+      header += "\n #endif\n";
+
+      return header;
+  }
 public:
   inline bool exists() const { return this->exists_; }
   inline void exists(bool state) { this->exists_ = state; }
