@@ -152,34 +152,19 @@ std::cout << "🎯 ocl_compiler nutzt Kernel-Quelle: " << kernel_path_final << s
         // =========================================================================
         // 🛡️ DYNAMISCHE AMD- UND FLOAT-WEICHE IM TREIBER-RAM
         // =========================================================================
-        std::string platform_name = platform.getInfo<CL_PLATFORM_NAME>();
-        bool is_amd = (platform_name.find("AMD") != std::string::npos) || 
-                      (platform_name.find("Advanced Micro Devices") != std::string::npos);
-        std::string final_kernel_source = "";
         
         if (force_float) {
           std::cout << "🏎️ [ocl_compiler] Zwinge Device-Info in den FLOAT-Modus (-f aktiv)!" << std::endl;
           
           // Wir tricksen die interne Hardware-Abfrage aus!
           physx_device.info.is_fp64_capable = 0; 
-        } else {
-            // B. Der scharfe Double-Modus (FP64)
-            if (is_amd) {
-                // 🍏 AMD-RETTUNG: Wir definieren die Typen hart vorab UND setzen 
-                // ein Makro, das das Untermodul davon abhält, das Pragma zu zünden!
-                final_kernel_source = "#define FP64_MODE 1\n#define real_t double\n#define cl_khr_fp64 1\n" + core_kernel;
-                physx_device.info.is_fp64_capable = 1;
-            } else {
-                // Standard für Nvidia / Intel CPU
-                final_kernel_source = "#define FP64_MODE 1\n#define real_t double\n" + core_kernel;
-                physx_device.info.is_fp64_capable = 1;
-            }
-        }
+        } 
     
     
-        physx_device.set_kernel_source(final_kernel_source);
+        physx_device.set_kernel_source(core_kernel);
         
-        physx_device.compile_kernel("-cl-opt-disable", false);
+        // physx_device.compile_kernel("-cl-opt-disable", false);
+        physx_device.compile_kernel("", false);
 
         // Handle für den catch-Block sichern
         cl_program = physx_device.get_cl_program();
