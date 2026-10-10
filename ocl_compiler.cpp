@@ -283,9 +283,9 @@ int main(int argc, char* argv[]) {
         }
 
         auto bin_data = cl_program.getInfo<CL_PROGRAM_BINARIES>();
-        if (!bin_data.empty() && bin_data.size() > 0) {
+        if (!bin_data[0].empty() && bin_data[0].size() > 0) {
             std::ofstream out(output_path, std::ios::binary | std::ios::out);
-            out.write(reinterpret_cast<const char*>(bin_data.data()), bin_data.size());
+            out.write(reinterpret_cast<const char*>(bin_data[0].data()), bin_data[0].size());
             out.close();
             
             std::cout << "SUCCESS" << std::endl << std::flush;
