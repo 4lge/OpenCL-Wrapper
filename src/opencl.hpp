@@ -712,10 +712,10 @@ public:
     // =========================================================================
     // 🚀 NEU: DER UNFEHLBARE OPENCL-C QUELLTEXT-DRUCKER (Debug-Schnittstelle)
     // =========================================================================
-    std::cout << "\n=================== GENERATED OPENCL C CODE ===================\n"
-              << compiled_code
-              << "\n===============================================================\n\n"
-              << std::flush;
+    //std::cout << "\n=================== GENERATED OPENCL C CODE ===================\n"
+    //          << compiled_code
+    //          << "\n===============================================================\n\n"
+    //          << std::flush;
 
 
     cl_source.push_back({ compiled_code.c_str(), compiled_code.length() });
