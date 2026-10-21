@@ -13,9 +13,13 @@
 // https://github.com/KhronosGroup/OpenCL-CLHPP
 #define CL_HPP_MINIMUM_OPENCL_VERSION 100
 #if !defined(__APPLE__) // Windows/Linux/Android
+#if !defined CL_HPP_TARGET_OPENCL_VERSION
 #define CL_HPP_TARGET_OPENCL_VERSION 300 // Windows/Linux/Android can use OpenCL 3.0
+#endif
 #else // macOS
+#if !defined CL_HPP_TARGET_OPENCL_VERSION
 #define CL_HPP_TARGET_OPENCL_VERSION 120 // macOS only supports OpenCL 1.2
+#endif
 #endif // macOS
 
 //#ifndef CL_HPP_ENABLE_EXCEPTIONS
