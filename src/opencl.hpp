@@ -456,7 +456,7 @@ public:
     double d_base = std::chrono::duration<double>(t_base - t_start).count();
     std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 1. Basismember gesetzt | Schritt: " << d_base << "s | Gesamt: " << d_base << "s" << std::endl << std::flush;
     
-
+ 
     // this->compile_kernel();
     /*
       cl::Program::Sources cl_source;
