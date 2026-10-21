@@ -767,19 +767,38 @@ public:
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
 #else
     std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 2. Starte natives cl_program.build()..." << std::endl << std::flush;
-    // 🎯 DER RETTENDE CATCH-BLOCK DIREKT BEIM BUILD-AUFRUF
+    // 🎯 DYNAMISCHER FALLBACK FÜR DIE POCL-TREIBER-ANOMALIE
     try {
       error = cl_program.build({ this->info.cl_device }, final_options.c_str());
     }
     catch (...) {
-      std::string raw_nvidia_log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device);
+      std::string error_log = "";
+      try { error_log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(info.cl_device); } catch(...) {}
 
-      std::cout << "\n=================== NATIVE OPENCL BUILD LOG (CATCH) ===================\n"
-                << raw_nvidia_log
-                << "\n========================================================================\n\n" << std::flush;
-      throw std::runtime_error("OpenCL Fatal Build Exception");
+      // Wenn pocl wegen seiner eigenen CL3.0-Option meckert, zwingen wir ihn in einen leeren String!
+      if (error_log.find("-cl-std=CL3.0") != std::string::npos || error_log.find("CL3.0") != std::string::npos) {
+          std::cout << "⚠️ [POCL-BUG ERWISCHT] Defektes -cl-std=CL3.0 im Treiber erkannt! Starte leeren Notfall-Build..." << std::endl << std::flush;
+          try {
+              // Ein leerer String zwingt pocl, seine internen Geister-Optionen zu verwerfen
+              error = cl_program.build({ this->info.cl_device }, "");
+          } catch(...) {
+              error = -11; // Falls es immer noch crasht
+          }
+      } else {
+          std::cout << "\n=================== NATIVE OPENCL BUILD LOG (CATCH) ===================\n"
+                    << error_log
+                    << "\n========================================================================\n\n" << std::flush;
+          throw std::runtime_error("OpenCL Fatal Build Exception");
+      }
+    }
+    
+    // Sicherheitsprüfung nach dem Fallback-Versuch
+    if (error != 0) {
+        throw std::runtime_error("OpenCL Fatal Build Exception nach Fallback-Kompilierung.");
     }
 #endif
+    ////////////////
+
 
     auto t_build_end = std::chrono::high_resolution_clock::now();
     std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 3. cl_program.build() beendet | Code: " << error
