@@ -264,22 +264,7 @@ int main(int argc, char* argv[]) {
         // STANDARD-PFAD (Für Nvidia, Intel GPU, Intel CPU und AMD CPU via PoCL)
         // =========================================================================
         Device physx_device(context(), device(), queue());
-// 🚀 DER POCL- & ALT-SYSTEM-SCHUTZWALL:
-// Frage das Gerät ab, welche OpenCL-C-Version es REEL unterstützt!
-std::string device_cl_version = device.getInfo<CL_DEVICE_OPENCL_C_VERSION>();
- 
-std::string cl_std_flag = "-cl-std=CL1.2"; // Sicherer Standard-Fallback
 
-if (device_cl_version.find("3.0") != std::string::npos) {
-    cl_std_flag = "-cl-std=CL3.0";
-} else if (device_cl_version.find("2.0") != std::string::npos) {
-    cl_std_flag = "-cl-std=CL2.0";
-} else if (device_cl_version.find("1.2") != std::string::npos) {
-    cl_std_flag = "-cl-std=CL1.2";
-}
-
-// Füge das dynamisch ermittelte Flag zu deinen restlichen Optionen hinzu:
-std::string options = cl_std_flag + " -cl-mad-enable ";
  
         if (force_float) {
           std::cout << "🏎️ [ocl_compiler] Zwinge Device-Info in den FLOAT-Modus (-f aktiv)!" << std::endl;
@@ -287,26 +272,9 @@ std::string options = cl_std_flag + " -cl-mad-enable ";
         } 
     
         physx_device.set_kernel_source(core_kernel);
-// 🔍 DER FORENSIK-PRINT VOR clProgramBuild / program.build():
-std::cout << "\n================= BACKEND DEBUG START =================" << std::endl;
-std::cout << "▶ Eigene übergebene Options-Variable: '" << options << "'" << std::endl;
 
-// Prüfen, ob Linux-Umgebungsvariablen reinschießen
-if (const char* env_args = std::getenv("RUSTICL_COMPILER_ARGS")) {
-    std::cout << "▶ Umgebung RUSTICL_COMPILER_ARGS: '" << env_args << "'" << std::endl;
-}
-if (const char* env_cl = std::getenv("OCL_ICD_VENDORS")) {
-    std::cout << "▶ Umgebung OCL_ICD_VENDORS: '" << env_cl << "'" << std::endl;
-}
-
-// Auslesen, was das OpenCL-Gerät intern als Standard-Optionen definiert
-std::string dev_ver = device.getInfo<CL_DEVICE_OPENCL_C_VERSION>();
-std::cout << "▶ Physische Device OpenCL C Version: " << dev_ver << std::endl;
-std::cout << "================== BACKEND DEBUG END ==================\n" << std::endl;
-std::cout << "▶ options passed to compile_kernel: " << options+build_opts << std::endl;
-std::cout << "================== BACKEND DEBUG END ==================\n" << std::endl;
         
-        physx_device.compile_kernel(options+build_opts, false);
+        physx_device.compile_kernel(build_opts, false);
 
         cl_program = physx_device.get_cl_program();
 
