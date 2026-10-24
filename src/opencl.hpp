@@ -361,11 +361,11 @@ private:
 
       std::string header = 
       string(info.patch_nvidia_fp16         ? "\n #define cl_khr_fp16"                : "")+ 
-      string(info.is_fp64_capable           ? "\n typedef double real_t;"                : "\n typedef float real_t;")+ 
-      string(info.is_fp64_capable           ? "\n typedef double2 real2_t;"                : "\n typedef float2 real2_t;")+
-      string(info.is_fp64_capable           ? "\n typedef double3 real3_t;"                : "\n typedef float3 real3_t;")+
-      string(info.is_fp64_capable           ? "\n typedef double4 real4_t;"                : "\n typedef float4 real4_t;")+
-      string(info.is_fp64_capable           ? "\n typedef double8 real8_t;"                : "\n typedef float8 real8_t;")+
+      string(info.is_fp64_capable           ? "\n typedef double real;"                : "\n typedef float real;")+ 
+      string(info.is_fp64_capable           ? "\n typedef double2 real2;"                : "\n typedef float2 real2;")+
+      string(info.is_fp64_capable           ? "\n typedef double3 real3;"                : "\n typedef float3 real3;")+
+      string(info.is_fp64_capable           ? "\n typedef double4 real4;"                : "\n typedef float4 real4;")+
+      string(info.is_fp64_capable           ? "\n typedef double8 real8;"                : "\n typedef float8 real8;")+
       string(info.patch_legacy_gpu_fma      ? "\n #define fma(a, b, c) ((a)*(b)+(c))" : "")+ 
       string(info.intel_compute_capability  ? "\n #define cl_intel_compute_capability "+to_string(info.intel_compute_capability) : "")+ 
       string(info.nvidia_compute_capability ? "\n #define cl_nv_compute_capability "+to_string(info.nvidia_compute_capability) : "")+ 

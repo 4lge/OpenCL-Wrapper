@@ -231,11 +231,11 @@ int main(int argc, char* argv[]) {
             std::ofstream tmp_out(tmp_cl_source);
             
             tmp_out << "#define cl_workgroup_size 64u\n"
-                    << (force_float ? "typedef float real_t;\n" : "typedef double real_t;\n")
-                    << "typedef " << (force_float ? "float2" : "double2") << " real2_t;\n"
-                    << "typedef " << (force_float ? "float3" : "double3") << " real3_t;\n"
-                    << "typedef " << (force_float ? "float4" : "double4") << " real4_t;\n"
-                    << "typedef " << (force_float ? "float8" : "double8") << " real8_t;\n"
+                    << (force_float ? "typedef float real;\n" : "typedef double real;\n")
+                    << "typedef " << (force_float ? "float2" : "double2") << " real2;\n"
+                    << "typedef " << (force_float ? "float3" : "double3") << " real3;\n"
+                    << "typedef " << (force_float ? "float4" : "double4") << " real4;\n"
+                    << "typedef " << (force_float ? "float8" : "double8") << " real8;\n"
                     << global_math_library_code << "\n" << core_kernel;
             tmp_out.close();
 
