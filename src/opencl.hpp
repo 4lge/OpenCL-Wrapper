@@ -785,9 +785,9 @@ public:
               error = -11; // Falls es immer noch crasht
           }
       } else {
-          //std::cout << "\n=================== NATIVE OPENCL BUILD LOG (CATCH) ===================\n"
-          //          << error_log
-          //          << "\n========================================================================\n\n" << std::flush;
+          std::cout << "\n=================== NATIVE OPENCL BUILD LOG (CATCH) ===================\n"
+                    << error_log
+                    << "\n========================================================================\n\n" << std::flush;
           throw std::runtime_error("OpenCL Fatal Build Exception");
       }
     }
