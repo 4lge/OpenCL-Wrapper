@@ -726,8 +726,8 @@ public:
     this->cl_program = cl::Program(info.cl_context, cl_source);
 
     auto t_prog = std::chrono::high_resolution_clock::now();
-    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 1. cl::Program aus Source erzeugt | Zeit: "
-              << std::chrono::duration<double>(t_prog - t_start).count() << "s" << std::endl << std::flush;
+    //std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 1. cl::Program aus Source erzeugt | Zeit: "
+    //          << std::chrono::duration<double>(t_prog - t_start).count() << "s" << std::endl << std::flush;
 
     string build_options = opt + " -cl-std=CL" + info.opencl_c_version;
 
@@ -748,7 +748,7 @@ public:
     auto t_build_start = std::chrono::high_resolution_clock::now();
 
 #ifdef _WIN32
-    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 2. Starte asynchrones cl_program.build()..." << std::endl << std::flush;
+    //std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 2. Starte asynchrones cl_program.build()..." << std::endl << std::flush;
 
     bool build_finished = false;
 
@@ -763,10 +763,10 @@ public:
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
-    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 3. cl_program.build() beendet. Erwische Windows-Scheduler..." << std::endl << std::flush;
+    //std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 3. cl_program.build() beendet. Erwische Windows-Scheduler..." << std::endl << std::flush;
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
 #else
-    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 2. Starte natives cl_program.build()..." << std::endl << std::flush;
+    //std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 2. Starte natives cl_program.build()..." << std::endl << std::flush;
     // 🎯 DYNAMISCHER FALLBACK FÜR DIE POCL-TREIBER-ANOMALIE
     try {
       error = cl_program.build({ this->info.cl_device }, final_options.c_str());
@@ -777,7 +777,7 @@ public:
 
       // Wenn pocl wegen seiner eigenen CL3.0-Option meckert, zwingen wir ihn in einen leeren String!
       if (error_log.find("-cl-std=CL3.0") != std::string::npos || error_log.find("CL3.0") != std::string::npos) {
-          std::cout << "⚠️ [POCL-BUG ERWISCHT] Defektes -cl-std=CL3.0 im Treiber erkannt! Starte leeren Notfall-Build..." << std::endl << std::flush;
+          //std::cout << "⚠️ [POCL-BUG ERWISCHT] Defektes -cl-std=CL3.0 im Treiber erkannt! Starte leeren Notfall-Build..." << std::endl << std::flush;
           try {
               // Ein leerer String zwingt pocl, seine internen Geister-Optionen zu verwerfen
               error = cl_program.build({ this->info.cl_device }, "");
@@ -785,9 +785,9 @@ public:
               error = -11; // Falls es immer noch crasht
           }
       } else {
-          std::cout << "\n=================== NATIVE OPENCL BUILD LOG (CATCH) ===================\n"
-                    << error_log
-                    << "\n========================================================================\n\n" << std::flush;
+          //std::cout << "\n=================== NATIVE OPENCL BUILD LOG (CATCH) ===================\n"
+          //          << error_log
+          //          << "\n========================================================================\n\n" << std::flush;
           throw std::runtime_error("OpenCL Fatal Build Exception");
       }
     }
@@ -801,8 +801,8 @@ public:
 
 
     auto t_build_end = std::chrono::high_resolution_clock::now();
-    std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 3. cl_program.build() beendet | Code: " << error
-              << " | Reine Build-Zeit: " << std::chrono::duration<double>(t_build_end - t_build_start).count() << "s" << std::endl << std::flush;
+    //std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 3. cl_program.build() beendet | Code: " << error
+    //          << " | Reine Build-Zeit: " << std::chrono::duration<double>(t_build_end - t_build_start).count() << "s" << std::endl << std::flush;
 
     // 🎯 DER FEHLERFESTE ZWANG-DRUCKER FÜR DEINEN ORIGINAL-CODE
     std::string hardware_log = "";
@@ -823,9 +823,9 @@ public:
 
     }
     // 🚀 AUCH BEI SUCCESS DIREKT AUF STD::CERR AUSGEBEN (Für distance_matrix Sichtbarkeit!)
-    std::cout << "\n=================== NATIVE OPENCL BUILD LOG (SUCCESS) ===================\n"
-              << hardware_log
-              << "\n=========================================================================\n\n" << std::flush;
+    //std::cout << "\n=================== NATIVE OPENCL BUILD LOG (SUCCESS) ===================\n"
+    //          << hardware_log
+    //          << "\n=========================================================================\n\n" << std::flush;
 
 #ifdef PTX
     write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>());
@@ -916,11 +916,11 @@ public:
     auto t1 = std::chrono::high_resolution_clock::now();
 
     // 🔬 DIAGNOSTISCHER HARDWARE-HANDLE-CHECK
-    std::cout << "🔍 [DEBUG-STATE] Vor cl::Program:\n"
-              << "   -> Raw Context Handle: " << std::hex << (void*)(info.cl_context()) << "\n"
-              << "   -> Raw Device ID:      " << (void*)(info.cl_device()) << "\n"
-              << "   -> Mathematischer Byte-Hash: " << byte_sum << std::dec << " (" << size << " Bytes)\n"
-              << "⏱️ [BIN-LOAD-SUBPROFILE] Zeit fuer I/O: " << std::chrono::duration<double>(t1 - t0).count() << "s" << std::endl << std::flush;
+    //std::cout << "🔍 [DEBUG-STATE] Vor cl::Program:\n"
+    //          << "   -> Raw Context Handle: " << std::hex << (void*)(info.cl_context()) << "\n"
+    //          << "   -> Raw Device ID:      " << (void*)(info.cl_device()) << "\n"
+    //          << "   -> Mathematischer Byte-Hash: " << byte_sum << std::dec << " (" << size << " Bytes)\n"
+    //          << "⏱️ [BIN-LOAD-SUBPROFILE] Zeit fuer I/O: " << std::chrono::duration<double>(t1 - t0).count() << "s" << std::endl << std::flush;
 
 
     // 2. Khronos-Vektoren vorbereiten
@@ -932,29 +932,29 @@ public:
     auto t2 = std::chrono::high_resolution_clock::now();
 
     // 3. Der eigentliche Erzeugungs-API-Call (Verdacht auf Loader Lock / Topologie-Deadlock)
-    std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 2. Starte cl::Program Erzeugung..." << std::endl << std::flush;
+    //std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 2. Starte cl::Program Erzeugung..." << std::endl << std::flush;
 
     this->cl_program = cl::Program(info.cl_context, devices_vec, binaries, &binary_statuses, &error);
 
     auto t3 = std::chrono::high_resolution_clock::now();
-    std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 3. cl::Program beendet | Fehler-Code: " << error
-              << " | Zeit für diesen Schritt: " << std::chrono::duration<double>(t3 - t2).count() << "s" << std::endl << std::flush;
+    //std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 3. cl::Program beendet | Fehler-Code: " << error
+    //          << " | Zeit für diesen Schritt: " << std::chrono::duration<double>(t3 - t2).count() << "s" << std::endl << std::flush;
 
     if (error || (binary_statuses.size() > 0 && binary_statuses[0] != CL_SUCCESS)) {
       throw std::runtime_error("Fehler beim Laden der OpenCL-Binärdatei. Code: " + std::to_string(error));
     }
 
     // 4. Der Build-Call (Formalität bei Binaries, sollte 0ms dauern)
-    std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 4. Starte cl_program.build()..." << std::endl << std::flush;
+    //std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 4. Starte cl_program.build()..." << std::endl << std::flush;
 
     cl_program.build(devices_vec, "");
 
     auto t4 = std::chrono::high_resolution_clock::now();
-    std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 5. cl_program.build() beendet | Zeit: "
-              << std::chrono::duration<double>(t4 - t3).count() << "s" << std::endl << std::flush;
+    //std::cout << "⏱️ [BIN-LOAD-SUBPROFILE] 5. cl_program.build() beendet | Zeit: "
+    //          << std::chrono::duration<double>(t4 - t3).count() << "s" << std::endl << std::flush;
 
     this->kernel_compiled = true;
-    std::cout << "🚪 [BIN-LOAD-SUBPROFILE] >>> VERLASSE load_compiled_binary geordnet... <<<" << std::endl << std::flush;
+    //std::cout << "🚪 [BIN-LOAD-SUBPROFILE] >>> VERLASSE load_compiled_binary geordnet... <<<" << std::endl << std::flush;
     std::cout << std::flush; std::cerr << std::flush;
     fflush(stdout); fflush(stderr);
   }
@@ -964,17 +964,17 @@ public:
   inline void export_compiled_binary(const std::string& binary_path) {
     try {
       // 🛡️ REPARATUR-WACHMACHER 1 FÜR WINDOWS: Pipe öffnen vor dem Treiber-Call
-      std::cout << "💾 [EXPORT] Starte treibersicheren ELF-Export..." << std::endl << std::flush;
+      //std::cout << "💾 [EXPORT] Starte treibersicheren ELF-Export..." << std::endl << std::flush;
 
       size_t real_size = 0;
       cl_int err = clGetProgramInfo(this->cl_program(), CL_PROGRAM_BINARY_SIZES,
                                     sizeof(size_t), &real_size, NULL);
 
       // 🛡️ REPARATUR-WACHMACHER 2 FÜR WINDOWS: Signal direkt nach der Größen-Ermittlung
-      std::cout << "💾 [EXPORT] Groesse ermittelt: " << real_size << " Bytes. Allokiere Buffer..." << std::endl << std::flush;
+      //std::cout << "💾 [EXPORT] Groesse ermittelt: " << real_size << " Bytes. Allokiere Buffer..." << std::endl << std::flush;
 
       if (err != CL_SUCCESS || real_size == 0) {
-        std::cerr << "⚠️ Warnung: Keine gueltigen Binaergroessen vom Treiber gemeldet! Code: " << err << std::endl;
+        //std::cerr << "⚠️ Warnung: Keine gueltigen Binaergroessen vom Treiber gemeldet! Code: " << err << std::endl;
         return;
       }
 
@@ -982,28 +982,28 @@ public:
       std::vector<unsigned char*> binaries_pointers = { raw_buffer.data() };
 
       // 🛡️ REPARATUR-WACHMACHER 3 FÜR WINDOWS: Pipe unmittelbar vor dem Datenabruf wachhalten
-      std::cout << "💾 [EXPORT] Rufe Maschinencode von Hardware ab..." << std::endl << std::flush;
+      //std::cout << "💾 [EXPORT] Rufe Maschinencode von Hardware ab..." << std::endl << std::flush;
 
       err = clGetProgramInfo(this->cl_program(), CL_PROGRAM_BINARIES,
                              sizeof(unsigned char*) * binaries_pointers.size(),
                              binaries_pointers.data(), NULL);
 
       // 🛡️ REPARATUR-WACHMACHER 4 FÜR WINDOWS: Weckt die Rterm-Pipe unmittelbar vor dem Dateischreiben auf!
-      std::cout << "💾 [EXPORT] Treiber-Buffer erfolgreich ausgelesen. Schreibe Datei..." << std::endl << std::flush;
+      //std::cout << "💾 [EXPORT] Treiber-Buffer erfolgreich ausgelesen. Schreibe Datei..." << std::endl << std::flush;
 
       if (err == CL_SUCCESS) {
         std::ofstream out(binary_path, std::ios::binary | std::ios::out);
         out.write(reinterpret_cast<const char*>(raw_buffer.data()), real_size);
         out.close();
 
-        std::cout << "💾 OpenCL-Binary erfolgreich exportiert: " << binary_path
-                  << " (" << real_size << " Bytes)" << std::endl << std::flush;
+        //std::cout << "💾 OpenCL-Binary erfolgreich exportiert: " << binary_path
+        //          << " (" << real_size << " Bytes)" << std::endl << std::flush;
       } else {
-        std::cerr << "💥 Fehler beim Abrufen der Binaerdaten. Code: " << err << std::endl;
+        //std::cerr << "💥 Fehler beim Abrufen der Binaerdaten. Code: " << err << std::endl;
       }
     }
     catch (const std::exception& e) {
-      std::cerr << "💥 Exception im export_compiled_binary: " << e.what() << std::endl;
+      //std::cerr << "💥 Exception im export_compiled_binary: " << e.what() << std::endl;
     }
   }
 #include <sys/stat.h> // 🎯 Zwingend oben einbinden für die Zeitstempel (stat)
@@ -1046,17 +1046,17 @@ public:
       if (src_res == 0 && bin_res == 0) {
         if (stat_source.st_mtime > stat_binary.st_mtime) {
           source_is_newer = true;
-          std::cout << "🔄 [MAKE-REBUILD] OpenCL-Quellcode wurde veraendert! Erwische veraltetes Binary..." << std::endl << std::flush;
+          //std::cout << "🔄 [MAKE-REBUILD] OpenCL-Quellcode wurde veraendert! Erwische veraltetes Binary..." << std::endl << std::flush;
         }
       }
     }
 
     // 🚀 INTELLIGENTE WARMSTART-WEICHE
     if (binary_exists && !source_is_newer) {
-      std::cout << "⏱️ [BACKEND] Vorkompiliertes, aktuelles Binary gefunden. Überspringe JIT..." << std::endl << std::flush;
+      //std::cout << "⏱️ [BACKEND] Vorkompiliertes, aktuelles Binary gefunden. Überspringe JIT..." << std::endl << std::flush;
       this->load_compiled_binary(binary_path);
     } else {
-      std::cout << "⏱️ [BACKEND] Binary fehlt oder ist veraltet. Starte Standalone-Kompilierung..." << std::endl << std::flush;
+      //std::cout << "⏱️ [BACKEND] Binary fehlt oder ist veraltet. Starte Standalone-Kompilierung..." << std::endl << std::flush;
       // 🎯 SAUBERE TRENNUNG: Basis-Pfad holen und sicherstellen, dass er mit einem Slash endet
       std::string base_dir = this->kernel_path;
       if (!base_dir.empty() && base_dir.back() != '/' && base_dir.back() != '\\') {
@@ -1115,19 +1115,19 @@ public:
       compiler_cmd += " -f"; // Zwingt den ocl_compiler via CLI in den Float-Modus!
 #endif
       
-      std::cout << "🔄 [BACKEND-EXEC] " << compiler_cmd << std::endl << std::flush;
+      //std::cout << "🔄 [BACKEND-EXEC] " << compiler_cmd << std::endl << std::flush;
 
       int status = std::system(compiler_cmd.c_str());
       if (status != 0) {
         throw std::runtime_error("💥 Fehler: Der Standalone CLI-Compiler-Prozess lieferte einen Fehler-Code (" + std::to_string(status) + ")!");
       }
 
-      std::cout << "💾 [BACKEND] Neues Binary erfolgreich erzeugt. Lade Code..." << std::endl << std::flush;
+      //std::cout << "💾 [BACKEND] Neues Binary erfolgreich erzeugt. Lade Code..." << std::endl << std::flush;
       this->load_compiled_binary(binary_path);
       
       // 🚀 NEUE KONTROLLE: Sind wir unbeschadet zurückgekehrt?
-      std::cout << "🎉 [BACKEND-JIT] >>> ZURÜCK IM AUFRUFER! load_compiled_binary erfolgreich überlebt. <<<" << std::endl << std::flush;
-      std::cout << "🔍 [DEBUG-JIT] Status kernel_compiled: " << (this->kernel_compiled ? "TRUE" : "FALSE") << std::endl << std::flush;
+      //std::cout << "🎉 [BACKEND-JIT] >>> ZURÜCK IM AUFRUFER! load_compiled_binary erfolgreich überlebt. <<<" << std::endl << std::flush;
+      //std::cout << "🔍 [DEBUG-JIT] Status kernel_compiled: " << (this->kernel_compiled ? "TRUE" : "FALSE") << std::endl << std::flush;
       std::cout << std::flush; std::cerr << std::flush;
       fflush(stdout); fflush(stderr);
     }

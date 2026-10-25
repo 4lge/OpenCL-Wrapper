@@ -70,7 +70,7 @@ int main(int argc, char* argv[]) {
         else if (arg == "-f" || arg == "--force-float") force_float = true; 
         else if (arg == "-v" || arg == "--verbose") {
             get_opencl_print_enabled() = true; 
-            std::cout << "🔍 [ocl_compiler] Maximaler Verbose-Modus via CLI aktiviert!" << std::endl;
+            //std::cout << "🔍 [ocl_compiler] Maximaler Verbose-Modus via CLI aktiviert!" << std::endl;
         }
         else if ((arg == "-h" || arg == "--help")) print_usage();
     }
@@ -111,7 +111,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    std::cout << "🎯 ocl_compiler nutzt Kernel-Quelle: " << kernel_path_final << std::endl;
+    //std::cout << "🎯 ocl_compiler nutzt Kernel-Quelle: " << kernel_path_final << std::endl;
 
     std::ifstream kernel_file(kernel_path_final);
     if (!kernel_file.good()) {
@@ -215,8 +215,8 @@ int main(int argc, char* argv[]) {
         // 🚀 DER PROAKTIVE AMD-GPU SONDERWEG (Jetzt 100% gekoppelt an Rcpp!)
         // =========================================================================
         if (is_amd && !is_cpu) {
-            std::cout << "🏎️ [ocl_compiler] AMD GPU erkannt (Ordner-Target: " << final_device_folder << ")!" << std::endl;
-            std::cout << "🛡️ Schalte proaktiv auf den AMD-Clang-Offline-Tunnel um..." << std::endl;
+            //std::cout << "🏎️ [ocl_compiler] AMD GPU erkannt (Ordner-Target: " << final_device_folder << ")!" << std::endl;
+            //std::cout << "🛡️ Schalte proaktiv auf den AMD-Clang-Offline-Tunnel um..." << std::endl;
 
             // 🚀 AUTOMATISCHER ORDNER-ERZEUGER (Verhindert 'No such file or directory')
             size_t final_slash = output_path.find_last_of("/\\");
@@ -245,14 +245,14 @@ int main(int argc, char* argv[]) {
                                     "-target amdgcn-amd-amdhsa -mcpu=" + final_device_folder + 
                                     " " + tmp_cl_source + " -o " + output_path;
 
-            std::cout << "🔄 [BACKEND-EXEC] " << clang_cmd << std::endl;
+            //std::cout << "🔄 [BACKEND-EXEC] " << clang_cmd << std::endl;
             
             int exit_code = std::system(clang_cmd.c_str());
             std::remove(tmp_cl_source.c_str()); // Temporäre Quelltext-Leiche löschen
 
             if (exit_code == 0) {
-                std::cout << "🎉 [ocl_compiler] Proaktiver AMD-Clang-Build erfolgreich!" << std::endl;
-                std::cout << "SUCCESS" << std::endl << std::flush;
+                //std::cout << "🎉 [ocl_compiler] Proaktiver AMD-Clang-Build erfolgreich!" << std::endl;
+                //std::cout << "SUCCESS" << std::endl << std::flush;
                 _exit(0); 
             } else {
                 std::cerr << "💥 Fehler: Proaktiver AMD-Clang-Build fehlgeschlagen mit Code: " << exit_code << std::endl;
@@ -267,7 +267,7 @@ int main(int argc, char* argv[]) {
 
  
         if (force_float) {
-          std::cout << "🏎️ [ocl_compiler] Zwinge Device-Info in den FLOAT-Modus (-f aktiv)!" << std::endl;
+          //std::cout << "🏎️ [ocl_compiler] Zwinge Device-Info in den FLOAT-Modus (-f aktiv)!" << std::endl;
           physx_device.info.is_fp64_capable = 0; 
         } 
     
@@ -292,7 +292,7 @@ int main(int argc, char* argv[]) {
             out.write(reinterpret_cast<const char*>(bin_data[0].data()), bin_data[0].size());
             out.close();
             
-            std::cout << "SUCCESS" << std::endl << std::flush;
+            //std::cout << "SUCCESS" << std::endl << std::flush;
             std::cerr << std::flush;
             
             #ifndef _WIN32
