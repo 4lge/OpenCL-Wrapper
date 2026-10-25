@@ -426,7 +426,7 @@ public:
   Device_Info info;
   inline Device(const Device_Info& info, const string& opencl_c_code=get_opencl_c_code()) {
     auto t_start = std::chrono::high_resolution_clock::now();
-    std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 0. Eintritt in C-API-Konstruktor..." << std::endl << std::flush;
+    //std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 0. Eintritt in C-API-Konstruktor..." << std::endl << std::flush;
     
     print_device_info(info);
     this->info = info;
@@ -458,7 +458,7 @@ public:
 
     auto t_base = std::chrono::high_resolution_clock::now();
     double d_base = std::chrono::duration<double>(t_base - t_start).count();
-    std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 1. Basismember gesetzt | Schritt: " << d_base << "s | Gesamt: " << d_base << "s" << std::endl << std::flush;
+    //std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 1. Basismember gesetzt | Schritt: " << d_base << "s | Gesamt: " << d_base << "s" << std::endl << std::flush;
     
  
     // this->compile_kernel();
@@ -490,7 +490,7 @@ public:
   // 🚀 DER DEFINITIVE WINDOWS- & LINUX-RETTUNGSTRACK FÜR DEINEN FORK (MIT HIGHSPEED-TIMING):
   inline Device(cl_context ext_context, cl_device_id ext_device, cl_command_queue ext_queue, int p_idx = 0, int d_idx = 0) {
     auto t_start = std::chrono::high_resolution_clock::now();
-    std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 1. Eintritt in C-API-Konstruktor..." << std::endl << std::flush;
+    //std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 1. Eintritt in C-API-Konstruktor..." << std::endl << std::flush;
 
     this->exists_ = true;
     this->c_code = "";
@@ -508,7 +508,7 @@ public:
 
     auto t_base = std::chrono::high_resolution_clock::now();
     double d_base = std::chrono::duration<double>(t_base - t_start).count();
-    std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 2. Basismember gesetzt | Schritt: " << d_base << "s | Gesamt: " << d_base << "s" << std::endl << std::flush;
+    //std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 2. Basismember gesetzt | Schritt: " << d_base << "s | Gesamt: " << d_base << "s" << std::endl << std::flush;
     
     // 🎯 VOR DEM KRITISCHEN TREIBER-WRAPPING DIE PIPES LEERFEGEN
     std::cout << std::flush; std::cerr << std::flush;
@@ -516,10 +516,10 @@ public:
     // 🚀 NUR WRAPPEN, WENN TATSÄCHLICH EINE QUEUE ÜBERGEBEN WURDE:
     if (ext_queue != NULL) {
 #ifdef _WIN32
-    std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 3a. Windows: Starte cl::CommandQueue(ext_queue, false)..." << std::endl << std::flush;
+    //std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 3a. Windows: Starte cl::CommandQueue(ext_queue, false)..." << std::endl << std::flush;
     this->cl_queue = cl::CommandQueue(ext_queue, false);
 #else
-    std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 3b. Linux: Starte cl::CommandQueue(ext_queue, true)..." << std::endl << std::flush;
+    //std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 3b. Linux: Starte cl::CommandQueue(ext_queue, true)..." << std::endl << std::flush;
     this->cl_queue = cl::CommandQueue(ext_queue, true);
 #endif
     } else {
@@ -530,7 +530,7 @@ public:
     auto t_queue = std::chrono::high_resolution_clock::now();
     double d_queue = std::chrono::duration<double>(t_queue - t_base).count();
     double g_queue = std::chrono::duration<double>(t_queue - t_start).count();
-    std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 4. CommandQueue gewrappt | Schritt: " << d_queue << "s | Gesamt: " << g_queue << "s" << std::endl << std::flush;
+    //std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 4. CommandQueue gewrappt | Schritt: " << d_queue << "s | Gesamt: " << g_queue << "s" << std::endl << std::flush;
 
     // 🎯 DER NVIDIA-LINUX-GURT: Wir verpacken die rohen Handles explizit mit 'false' (do not retain)!
     // Das macht das anschließende Kopieren auf das Klassen-Member absolut crash-sicher.
@@ -550,7 +550,7 @@ public:
     auto t_end = std::chrono::high_resolution_clock::now();
     double d_info = std::chrono::duration<double>(t_end - t_queue).count();
     double g_end = std::chrono::duration<double>(t_end - t_start).count();
-    std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 5. Konstruktor erfolgreich beendet | Schritt: " << d_info << "s | Gesamt: " << g_end << "s\n" << std::endl << std::flush;
+    //std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 5. Konstruktor erfolgreich beendet | Schritt: " << d_info << "s | Gesamt: " << g_end << "s\n" << std::endl << std::flush;
   }
   // 🎯 DER DEFIINITIVE PLATTFORM-RETTER: In-Place Update ohne Kopier-Destruktor-Hölle!
   inline void update_from_handles(cl_context ext_context, cl_device_id ext_device, cl_command_queue ext_queue = NULL, int p_idx = 0, int d_idx = 0) {
