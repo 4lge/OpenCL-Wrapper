@@ -823,9 +823,9 @@ public:
 
     }
     // 🚀 AUCH BEI SUCCESS DIREKT AUF STD::CERR AUSGEBEN (Für distance_matrix Sichtbarkeit!)
-    //std::cout << "\n=================== NATIVE OPENCL BUILD LOG (SUCCESS) ===================\n"
-    //          << hardware_log
-    //          << "\n=========================================================================\n\n" << std::flush;
+    std::cout << "\n=================== NATIVE OPENCL BUILD LOG (SUCCESS) ===================\n"
+              << hardware_log
+              << "\n=========================================================================\n\n" << std::flush;
 
 #ifdef PTX
     write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>());
