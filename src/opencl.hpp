@@ -1093,6 +1093,9 @@ public:
         full_compiler_cmd += "/";
       }
       full_compiler_cmd += this->compiler_binary;
+      // 🎯 ERZWINGT EXECUTE-RECHTE (0755): Repariert fliegend die R-Check Umask-Sperren!
+      chmod(full_compiler_cmd.c_str(), S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+
 #endif
 
       // 🎯 NUTZT DIE INTERNEN MEMBER-INDIZES: Vollkommen autonom und fehlerfrei!
