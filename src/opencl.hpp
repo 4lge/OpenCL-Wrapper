@@ -785,9 +785,9 @@ public:
               error = -11; // Falls es immer noch crasht
           }
       } else {
-          std::cout << "\n=================== NATIVE OPENCL BUILD LOG (CATCH) ===================\n"
-                    << error_log
-                    << "\n========================================================================\n\n" << std::flush;
+          println("\n=================== NATIVE OPENCL BUILD LOG (CATCH) ===================\n");
+          println(error_log);
+          println("\n========================================================================\n\n");
           throw std::runtime_error("OpenCL Fatal Build Exception");
       }
     }
@@ -823,9 +823,9 @@ public:
 
     }
     // 🚀 AUCH BEI SUCCESS DIREKT AUF STD::CERR AUSGEBEN (Für distance_matrix Sichtbarkeit!)
-    std::cout << "\n=================== NATIVE OPENCL BUILD LOG (SUCCESS) ===================\n"
-              << hardware_log
-              << "\n=========================================================================\n\n" << std::flush;
+    println("\n=================== NATIVE OPENCL BUILD LOG (SUCCESS) ===================\n");
+    println(hardware_log);
+    println("\n=========================================================================\n\n");
 
 #ifdef PTX
     write_file("bin/kernel.ptx", (char*)&cl_program.getInfo<CL_PROGRAM_BINARIES>());

@@ -13,6 +13,12 @@ inline bool& get_opencl_print_enabled() {
 #endif
 
 
+#ifdef OPENCLEAR_R_BUILD
+  #include <Rcpp.h>
+#else
+  #include <iostream>
+#endif
+
 
 #define UTILITIES_REGEX
 #define UTILITIES_FILE
@@ -581,35 +587,69 @@ template<typename T> inline string alignr(const uint n, const T x) { // converts
 	return alignr(n, to_string(x));
 }
 
+
 inline void print(const string& s="") {
-        if (!get_opencl_print_enabled()) return;
-#ifdef _WIN32
-    // Unter Windows zwingen wir R, den Puffer SOFORT zu leeren, 
-    // anstatt ihn asynchron anzustauen!
-    std::cout << s << std::flush;
-#else
-    std::cout << s;
-#endif	
-	std::cout << s;
+#ifndef OPENCLEAR_NO_OUTPUT
+    if (!get_opencl_print_enabled()) return;
+    #ifdef OPENCLEAR_R_BUILD
+        Rcpp::Rcout << s;
+        #ifdef _WIN32
+            R_FlushConsole();
+        #endif
+    #else
+        #ifdef _WIN32
+            std::cout << s << std::flush;
+        #else
+            std::cout << s;
+        #endif
+    #endif
+#endif
 }
+
 inline void println(const string& s="") {
-        if (!get_opencl_print_enabled()) return;
-#ifdef _WIN32
-    std::cout << s << "\n" << std::flush;
-#else
-    std::cout << s + "\n";
+#ifndef OPENCLEAR_NO_OUTPUT
+    if (!get_opencl_print_enabled()) return;
+    #ifdef OPENCLEAR_R_BUILD
+        Rcpp::Rcout << s << "\n";
+        #ifdef _WIN32
+            R_FlushConsole();
+        #endif
+    #else
+        #ifdef _WIN32
+            std::cout << s << "\n" << std::flush;
+        #else
+            std::cout << s + "\n";
+        #endif
+    #endif
 #endif
-}	
+}
+
 inline void reprint(const string& s="") {
-#ifdef _WIN32
-	std::cout << "\r"+s << std::flush;
-#else
-	std::cout << "\r"+s;
+#ifndef OPENCLEAR_NO_OUTPUT
+    #ifdef OPENCLEAR_R_BUILD
+        Rcpp::Rcout << "\r" << s;
+        #ifdef _WIN32
+            R_FlushConsole();
+        #endif
+    #else
+        #ifdef _WIN32
+            std::cout << "\r" + s << std::flush;
+        #else
+            std::cout << "\r" + s;
+        #endif
+    #endif
 #endif
 }
+
 inline void wait() {
-	std::cin.get();
+    #ifdef OPENCLEAR_R_BUILD
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    #else
+        std::cin.get();
+    #endif
 }
+
+
 template<typename T> inline void println(const T& x) {
 	println(to_string(x));
 }

@@ -223,8 +223,9 @@ int main(int argc, char* argv[]) {
             if (final_slash != std::string::npos) {
                 std::string target_dir = output_path.substr(0, final_slash);
                 std::string mkdir_cmd = "mkdir -p " + target_dir;
-                std::system(mkdir_cmd.c_str()); 
-            }
+                int r1 = std::system(mkdir_cmd.c_str()); 
+                (void)r1; // Silences GCC warn_unused_result
+             }
 
             // Vollständigen OpenCL-C Quelltext im RAM emulieren
             std::string tmp_cl_source = cache_base + "/amd_temp_jit.cl";
@@ -283,7 +284,8 @@ int main(int argc, char* argv[]) {
         if (final_slash != std::string::npos) {
             std::string target_dir = output_path.substr(0, final_slash);
             std::string mkdir_cmd = "mkdir -p " + target_dir;
-            std::system(mkdir_cmd.c_str()); 
+            int r2 = std::system(mkdir_cmd.c_str()); 
+            (void)r2; // Silences GCC warn_unused_result
         }
 
         auto bin_data = cl_program.getInfo<CL_PROGRAM_BINARIES>();
