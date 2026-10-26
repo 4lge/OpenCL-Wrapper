@@ -231,7 +231,7 @@ int main(int argc, char* argv[]) {
             std::ofstream tmp_out(tmp_cl_source);
             
             tmp_out << "#define cl_workgroup_size 64u\n"
-                    << (force_float ? "typedef float real_ocl;\n" : "typedef double real_ocl;\n")
+                    << (force_float ? "typedef float real;\n" : "typedef double real;\n")
                     << "typedef " << (force_float ? "float2" : "double2") << " real2;\n"
                     << "typedef " << (force_float ? "float3" : "double3") << " real3;\n"
                     << "typedef " << (force_float ? "float4" : "double4") << " real4;\n"

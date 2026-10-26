@@ -24,18 +24,18 @@ inline uint mt_rand(__private uint* state, __private int* idx, __private uint* m
 }
        
 // Mersenne Twister scaled to [0,1]
-inline real_ocl mt_rand_01(__private uint* state, __private int* idx, __private uint* mt) {
-  return (real_ocl)mt_rand(&mt[0], &idx[0], mt) / 4294967295.0f;
+inline real mt_rand_01(__private uint* state, __private int* idx, __private uint* mt) {
+  return (real)mt_rand(&mt[0], &idx[0], mt) / 4294967295.0f;
 }
 
 // uniform distribution
-inline real_ocl unif_rand(__private real_ocl lower, __private real_ocl upper,
+inline real unif_rand(__private real lower, __private real upper,
 		 __private int* idx, __private uint* mt) {
   return lower + (upper-lower)*mt_rand_01(&mt[0], &idx[0], mt);
 }
 
 // normal distribution
-inline real_ocl norm_rand(__private real_ocl mu, __private real_ocl sigma,
+inline real norm_rand(__private real mu, __private real sigma,
                  __private int* idx, __private uint* mt) {
   return mu + sigma * sqrt(-2 * log(mt_rand_01(&mt[0], &idx[0], mt))) *
     cos(2 * 3.14159265359f * mt_rand_01(&mt[0], &idx[0], mt));
