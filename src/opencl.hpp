@@ -26,7 +26,20 @@
 //#define CL_HPP_ENABLE_EXCEPTIONS
 //#endif
 
+// =============================================================================
+// 🛡️ CRAN-SCHUTZWALL: Deaktiviert Deprecated-Warnungen für die Khronos-Header
+// =============================================================================
+#if defined(__GNUC__) || defined(__clang__)
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 #include <CL/opencl.hpp>
+
+#if defined(__GNUC__) || defined(__clang__)
+  #pragma GCC diagnostic pop
+#endif
+
 #include "utilities.hpp"
 using cl::Event;
 
