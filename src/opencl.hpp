@@ -361,7 +361,7 @@ private:
 
       std::string header = 
       string(info.patch_nvidia_fp16         ? "\n #define cl_khr_fp16"                : "")+ 
-      string(info.is_fp64_capable           ? "\n typedef double real;"                : "\n typedef float real;")+ 
+      string(info.is_fp64_capable           ? "\n typedef double real_ocl;"                : "\n typedef float real_ocl;")+ 
       string(info.is_fp64_capable           ? "\n typedef double2 real2;"                : "\n typedef float2 real2;")+
       string(info.is_fp64_capable           ? "\n typedef double3 real3;"                : "\n typedef float3 real3;")+
       string(info.is_fp64_capable           ? "\n typedef double4 real4;"                : "\n typedef float4 real4;")+
