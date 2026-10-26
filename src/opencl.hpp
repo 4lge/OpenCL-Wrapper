@@ -511,8 +511,17 @@ public:
     //std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 2. Basismember gesetzt | Schritt: " << d_base << "s | Gesamt: " << d_base << "s" << std::endl << std::flush;
     
     // 🎯 VOR DEM KRITISCHEN TREIBER-WRAPPING DIE PIPES LEERFEGEN
-    std::cout << std::flush; std::cerr << std::flush;
-    fflush(stdout); fflush(stderr);
+#ifdef OPENCLEAR_R_BUILD
+    // CRAN-konformes Leeren des R-Ausgabe-Puffers
+    Rcpp::Rcout << std::flush;
+    Rcpp::Rcerr << std::flush;
+#else
+    // Der originale Windows/Standalone-Pfad bleibt unangetastet
+    #if defined(_WIN32)
+        std::cout << std::flush; std::cerr << std::flush;
+        fflush(stdout); fflush(stderr);
+    #endif
+#endif
     // 🚀 NUR WRAPPEN, WENN TATSÄCHLICH EINE QUEUE ÜBERGEBEN WURDE:
     if (ext_queue != NULL) {
 #ifdef _WIN32
@@ -955,8 +964,17 @@ public:
 
     this->kernel_compiled = true;
     //std::cout << "🚪 [BIN-LOAD-SUBPROFILE] >>> VERLASSE load_compiled_binary geordnet... <<<" << std::endl << std::flush;
-    std::cout << std::flush; std::cerr << std::flush;
-    fflush(stdout); fflush(stderr);
+#ifdef OPENCLEAR_R_BUILD
+    // CRAN-konformes Leeren des R-Ausgabe-Puffers
+    Rcpp::Rcout << std::flush;
+    Rcpp::Rcerr << std::flush;
+#else
+    // Der originale Windows/Standalone-Pfad bleibt unangetastet
+    #if defined(_WIN32)
+        std::cout << std::flush; std::cerr << std::flush;
+        fflush(stdout); fflush(stderr);
+    #endif
+#endif
   }
   
   // 💾 NATIVE BACKEND-METHODE FÜR DEN BYTESYNCHRONEN ELF/PTX-EXPORT
@@ -1131,8 +1149,17 @@ public:
       // 🚀 NEUE KONTROLLE: Sind wir unbeschadet zurückgekehrt?
       //std::cout << "🎉 [BACKEND-JIT] >>> ZURÜCK IM AUFRUFER! load_compiled_binary erfolgreich überlebt. <<<" << std::endl << std::flush;
       //std::cout << "🔍 [DEBUG-JIT] Status kernel_compiled: " << (this->kernel_compiled ? "TRUE" : "FALSE") << std::endl << std::flush;
-      std::cout << std::flush; std::cerr << std::flush;
-      fflush(stdout); fflush(stderr);
+#ifdef OPENCLEAR_R_BUILD
+    // CRAN-konformes Leeren des R-Ausgabe-Puffers
+    Rcpp::Rcout << std::flush;
+    Rcpp::Rcerr << std::flush;
+#else
+    // Der originale Windows/Standalone-Pfad bleibt unangetastet
+    #if defined(_WIN32)
+        std::cout << std::flush; std::cerr << std::flush;
+        fflush(stdout); fflush(stderr);
+    #endif
+#endif
     }
   }
 
