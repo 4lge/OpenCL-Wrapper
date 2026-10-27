@@ -415,6 +415,8 @@ private:
 public:
   inline bool exists() const { return this->exists_; }
   inline void exists(bool state) { this->exists_ = state; }
+  inline int device_index() const { return this->info.id; }
+  inline void device_index(int id) { this->info.id = id; }
   inline int device_id() const { return this->device_idx; }
   inline void device_id(int id) { this->device_idx = id; }
   inline int platform_id() const { return this->platform_idx; }
@@ -501,13 +503,14 @@ public:
   }
 
   // 🚀 DER DEFINITIVE WINDOWS- & LINUX-RETTUNGSTRACK FÜR DEINEN FORK (MIT HIGHSPEED-TIMING):
-  inline Device(cl_context ext_context, cl_device_id ext_device, cl_command_queue ext_queue, int p_idx = 0, int d_idx = 0) {
+  inline Device(cl_context ext_context, cl_device_id ext_device, cl_command_queue ext_queue, int idx = 0, int p_idx = 0, int d_idx = 0) {
     auto t_start = std::chrono::high_resolution_clock::now();
     //std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 1. Eintritt in C-API-Konstruktor..." << std::endl << std::flush;
 
     this->exists_ = true;
     this->c_code = "";
     this->kernel_compiled = false;
+    this->device_index(idx);
     this->platform_idx = p_idx;
     this->device_idx = d_idx;
     this->compiler_path = "./";
@@ -593,10 +596,11 @@ try {
     //std::cerr << "      ⚡ [opencl.hpp] [TIMER] -> 5. Konstruktor erfolgreich beendet | Schritt: " << d_info << "s | Gesamt: " << g_end << "s\n" << std::endl << std::flush;
   }
   // 🎯 DER DEFIINITIVE PLATTFORM-RETTER: In-Place Update ohne Kopier-Destruktor-Hölle!
-  inline void update_from_handles(cl_context ext_context, cl_device_id ext_device, cl_command_queue ext_queue = NULL, int p_idx = 0, int d_idx = 0) {
+  inline void update_from_handles(cl_context ext_context, cl_device_id ext_device, cl_command_queue ext_queue = NULL, int idx = 0, int p_idx = 0, int d_idx = 0) {
     this->exists(true);
     this->c_code = "";
     this->kernel_compiled = false;
+    this->device_index(idx);
     this->platform_idx = p_idx;
     this->device_idx = d_idx;
 
@@ -621,13 +625,33 @@ try {
         this->cl_queue = cl::CommandQueue(); 
     }
 
-    // Deine restliche Metadaten-Live-Extraktion (Kerne, TFLOPs, Caches etc.)
-    this->info.opencl_c_version = "3.0";
-    this->info.name = "OpenCLeaR Shared Accelerator";
-    this->info.vendor = "Generic OpenCL Driver";
-    this->info.memory = 4096u;
-    this->info.compute_units = 16u;
-    this->info.is_fp64_capable = true;
+    try {
+        this->info.name   = trim(this->info.cl_device.getInfo<CL_DEVICE_NAME>());
+        this->info.vendor = trim(this->info.cl_device.getInfo<CL_DEVICE_VENDOR>());
+        this->info.driver_version = trim(this->info.cl_device.getInfo<CL_DRIVER_VERSION>());
+        
+        // Exakte FP64-Weiche auslesen (Verhindert den Iris Xe JIT-Crash!)
+        std::string ext = this->info.cl_device.getInfo<CL_DEVICE_EXTENSIONS>();
+        this->info.is_fp64_capable = (uint)this->info.cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE>() * 
+                                     (uint)(contains(ext, "cl_khr_fp64") || contains(ext, "cl_amd_fp64"));
+        
+        this->info.opencl_c_version = this->info.cl_device.getInfo<CL_DEVICE_OPENCL_C_VERSION>().substr(9, 3);
+        this->info.memory           = (uint)(this->info.cl_device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() / 1048576ull);
+        this->info.compute_units    = (uint)this->info.cl_device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
+        this->info.clock_frequency  = (uint)this->info.cl_device.getInfo<CL_DEVICE_MAX_CLOCK_FREQUENCY>();
+        this->info.is_cpu           = this->info.cl_device.getInfo<CL_DEVICE_TYPE>() == CL_DEVICE_TYPE_CPU;
+        this->info.is_gpu           = this->info.cl_device.getInfo<CL_DEVICE_TYPE>() == CL_DEVICE_TYPE_GPU;
+        this->info.uses_ram         = this->info.is_cpu || (bool)this->info.cl_device.getInfo<CL_DEVICE_HOST_UNIFIED_MEMORY>();
+    } 
+    catch (...) {    this->info.opencl_c_version = "3.0";
+      this->info.patch_intel_gpu_above_4gb = false;
+      this->info.name = "OpenCLeaR Shared Accelerator";
+      this->info.vendor = "Generic OpenCL Driver";
+      this->info.memory = 4096u;
+      this->info.compute_units = 16u;
+      this->info.clock_frequency = 1000u;
+      this->info.is_fp64_capable = true;
+    }
   }
 
   inline Device() {
