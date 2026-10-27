@@ -560,15 +560,33 @@ public:
     this->info.cl_device  = cl::Device(ext_device, false);
 
     // FIXME:
-    this->info.opencl_c_version = "3.0";
-    this->info.patch_intel_gpu_above_4gb = false;
-    this->info.name = "OpenCLeaR Shared Accelerator";
-    this->info.vendor = "Generic OpenCL Driver";
-    this->info.memory = 4096u;
-    this->info.compute_units = 16u;
-    this->info.clock_frequency = 1000u;
-    this->info.is_fp64_capable = true;
-
+try {
+        this->info.name   = trim(this->info.cl_device.getInfo<CL_DEVICE_NAME>());
+        this->info.vendor = trim(this->info.cl_device.getInfo<CL_DEVICE_VENDOR>());
+        this->info.driver_version = trim(this->info.cl_device.getInfo<CL_DRIVER_VERSION>());
+        
+        // Exakte FP64-Weiche auslesen (Verhindert den Iris Xe JIT-Crash!)
+        std::string ext = this->info.cl_device.getInfo<CL_DEVICE_EXTENSIONS>();
+        this->info.is_fp64_capable = (uint)this->info.cl_device.getInfo<CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE>() * 
+                                     (uint)(contains(ext, "cl_khr_fp64") || contains(ext, "cl_amd_fp64"));
+        
+        this->info.opencl_c_version = this->info.cl_device.getInfo<CL_DEVICE_OPENCL_C_VERSION>().substr(9, 3);
+        this->info.memory           = (uint)(this->info.cl_device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() / 1048576ull);
+        this->info.compute_units    = (uint)this->info.cl_device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
+        this->info.clock_frequency  = (uint)this->info.cl_device.getInfo<CL_DEVICE_MAX_CLOCK_FREQUENCY>();
+        this->info.is_cpu           = this->info.cl_device.getInfo<CL_DEVICE_TYPE>() == CL_DEVICE_TYPE_CPU;
+        this->info.is_gpu           = this->info.cl_device.getInfo<CL_DEVICE_TYPE>() == CL_DEVICE_TYPE_GPU;
+        this->info.uses_ram         = this->info.is_cpu || (bool)this->info.cl_device.getInfo<CL_DEVICE_HOST_UNIFIED_MEMORY>();
+    } 
+    catch (...) {    this->info.opencl_c_version = "3.0";
+      this->info.patch_intel_gpu_above_4gb = false;
+      this->info.name = "OpenCLeaR Shared Accelerator";
+      this->info.vendor = "Generic OpenCL Driver";
+      this->info.memory = 4096u;
+      this->info.compute_units = 16u;
+      this->info.clock_frequency = 1000u;
+      this->info.is_fp64_capable = true;
+    }
     auto t_end = std::chrono::high_resolution_clock::now();
     double d_info = std::chrono::duration<double>(t_end - t_queue).count();
     double g_end = std::chrono::duration<double>(t_end - t_start).count();
@@ -1149,7 +1167,7 @@ public:
       compiler_cmd += " -f"; // Zwingt den ocl_compiler via CLI in den Float-Modus!
 #endif
       
-      //std::cout << "🔄 [BACKEND-EXEC] " << compiler_cmd << std::endl << std::flush;
+      println("🔄 [BACKEND-EXEC] " + compiler_cmd);// << std::endl << std::flush;
 
       int status = std::system(compiler_cmd.c_str());
       if (status != 0) {
