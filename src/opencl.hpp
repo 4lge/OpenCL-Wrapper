@@ -1211,6 +1211,12 @@ private:
     this->device = &device;
     this->cl_queue = device.get_cl_queue();
     if(allocate_device) {
+#ifdef _WIN32
+      // 🛡️ INTEL CPU ALLOCATION PROTECTOR
+      // Zwingt die CPU-Runtime zu absolutem Stillstand, BEVOR ein neuer
+      // Buffer mit veränderter Dimension im RAM verdrahtet wird.
+      cl_queue.finish();
+#endif
       device.info.memory_used += (uint)(capacity()/1048576ull); // track device memory usage
       if(device.info.memory_used>device.info.memory) print_error("Device \""+device.info.name+"\" does not have enough memory. Allocating another "+to_string((uint)(capacity()/1048576ull))+" MB would use a total of "+to_string(device.info.memory_used)+" MB / "+to_string(device.info.memory)+" MB.");
       int error = 0;
@@ -1357,12 +1363,23 @@ public:
       // und gibt dem Scheduler Zeit für den Thread-Wechsel, damit R nicht einfriert!
       clFlush(cl_queue());
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      // 🛡️ INTEL CPU DRIVER CRASH WALL
+      // Erzwingt, dass alle vorherigen Berechnungen komplett abgeschlossen sind,
+      // bevor der veränderte Buffer (z.B. von 10 auf 1000) gelesen wird!
+      cl_queue.finish();
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
 #endif
       cl_queue.enqueueReadBuffer(device_buffer, blocking, 0ull, capacity(), (void*)host_buffer, event_waitlist, event_returned);
     }
   }
   inline void write_to_device(const bool blocking=true, const vector<Event>* event_waitlist=nullptr, Event* event_returned=nullptr) {
     if(host_buffer_exists&&device_buffer_exists&&!is_zero_copy) {
+#ifdef _WIN32
+      // 🛡️ INTEL CPU ALLOCATION PROTECTOR
+      // Zwingt die CPU-Runtime zu absolutem Stillstand, BEVOR ein neuer
+      // Buffer mit veränderter Dimension im RAM verdrahtet wird.
+      cl_queue.finish();
+#endif      
       cl_queue.enqueueWriteBuffer(device_buffer, blocking, 0ull, capacity(), (void*)host_buffer, event_waitlist, event_returned);
     }
   }

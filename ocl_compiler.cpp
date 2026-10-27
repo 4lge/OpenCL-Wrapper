@@ -222,7 +222,14 @@ int main(int argc, char* argv[]) {
             size_t final_slash = output_path.find_last_of("/\\");
             if (final_slash != std::string::npos) {
                 std::string target_dir = output_path.substr(0, final_slash);
+#ifdef _WIN32
+                // Windows-kompatibles Erstellen von Ordnern (cmd.exe schluckt kein -p)
+                // Wir ersetzen Slashes durch Backslashes für den System-Aufruf
+                std::replace(target_dir.begin(), target_dir.end(), '/', '\\');
+                std::string mkdir_cmd = "if not exist \"" + target_dir + "\" mkdir \"" + target_dir + "\"";
+#else
                 std::string mkdir_cmd = "mkdir -p " + target_dir;
+#endif
                 int r1 = std::system(mkdir_cmd.c_str()); 
                 (void)r1; // Silences GCC warn_unused_result
              }
@@ -283,8 +290,15 @@ int main(int argc, char* argv[]) {
         size_t final_slash = output_path.find_last_of("/\\");
         if (final_slash != std::string::npos) {
             std::string target_dir = output_path.substr(0, final_slash);
+#ifdef _WIN32
+            // Windows-kompatibles Erstellen von Ordnern (cmd.exe schluckt kein -p)
+            // Wir ersetzen Slashes durch Backslashes für den System-Aufruf
+            std::replace(target_dir.begin(), target_dir.end(), '/', '\\');
+            std::string mkdir_cmd = "if not exist \"" + target_dir + "\" mkdir \"" + target_dir + "\"";
+#else
             std::string mkdir_cmd = "mkdir -p " + target_dir;
-            int r2 = std::system(mkdir_cmd.c_str()); 
+#endif
+                int r2 = std::system(mkdir_cmd.c_str()); 
             (void)r2; // Silences GCC warn_unused_result
         }
 
