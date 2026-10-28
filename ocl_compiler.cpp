@@ -319,11 +319,14 @@ int main(int argc, char* argv[]) {
             
             //std::cout << "SUCCESS" << std::endl << std::flush;
             std::cerr << std::flush;
+            std::cout << std::flush;
             
-            #ifndef _WIN32
-              _exit(0); 
-            #else
+            #if defined(OPENCLEAR_R_BUILD)
+              // Innerhalb der R-DLL: Sicherer Rücksprung, um R nicht zu killen!
               return(0); 
+            #else
+              // Im Standalone CLI-Compiler (.exe): Sicherer Hardware-Schnitt-Exit!
+              _exit(0); 
             #endif
         } else {
             std::cerr << "Fehler: Keine gueltigen OpenCL-Binaries vom Treiber zurueckgegeben.\n" << std::flush;
