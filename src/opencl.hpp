@@ -1276,7 +1276,15 @@ try {
 #endif
       
       println("🔄 [BACKEND-EXEC] " + compiler_cmd);// << std::endl << std::flush;
-
+#ifdef OPENCLEAR_R_BUILD
+      Rcpp::Rcout << "🔄 [CRITICAL-DEBUG] " << compiler_cmd << "\n";
+      Rcpp::Rcout << std::flush;
+      #ifdef _WIN32
+          R_FlushConsole(); // Zwingt R unter Windows, JETZT den Bildschirm zu aktualisieren
+      #endif
+#else
+      std::cout << "🔄 [CRITICAL-DEBUG] " << compiler_cmd << "\n" << std::flush;
+#endif
       int status = std::system(compiler_cmd.c_str());
       if (status != 0) {
         throw std::runtime_error("💥 Fehler: Der Standalone CLI-Compiler-Prozess lieferte einen Fehler-Code (" + std::to_string(status) + ")!");
