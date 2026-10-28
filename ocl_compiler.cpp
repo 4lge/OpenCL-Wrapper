@@ -1,3 +1,11 @@
+
+#ifdef  OPENCLEAR_R_BUILD
+#undef  OPENCLEAR_R_BUILD
+#endif
+#ifdef OPENCLEAR_NO_OUTPUT
+#undef OPENCLEAR_NO_OUTPUT
+#endif
+
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -19,7 +27,8 @@
 #ifndef CL_HPP_ENABLE_EXCEPTIONS
   #define CL_HPP_ENABLE_EXCEPTIONS
 #endif
- 
+
+
 // 🎯 DIE GLOBALE SPEICHER-VARIABLE FÜR DIE LIBRARAY
 static std::string global_math_library_code = "\n";
 
