@@ -590,6 +590,90 @@ try {
       this->info.clock_frequency = 1000u;
       this->info.is_fp64_capable = true;
     }
+     // =========================================================================
+    // 🧮 ORIGINALE CORES/TFLOPs LOGIK (FÜR WINDOWS-BRÜCKE ADAPTIERT)
+    // =========================================================================
+    {
+        cl_uint vendor_id = 0;
+        try { this->info.cl_device.getInfo(CL_DEVICE_VENDOR_ID, &vendor_id); } catch(...) {}
+        
+        float cores_per_cu = 1.0f;
+        uint ipc = 2u; // Standard Instruction Per Clock Fallback
+        
+        // Lokale Kopien für Modifikationen aus der originalen Heuristik
+        uint compute_units = this->info.compute_units;
+        std::string name = this->info.name;
+        std::string vendor = this->info.vendor;
+        std::string driver_version = this->info.driver_version;
+        bool is_gpu = this->info.is_gpu;
+        bool is_cpu = this->info.is_cpu;
+        bool uses_ram = this->info.uses_ram;
+
+        if(vendor_id == 0x1002) { // AMD GPU/CPU
+            const bool is_full_profile = trim(this->info.cl_device.getInfo<CL_DEVICE_PROFILE>()) == "FULL_PROFILE";
+            const bool amd_dual_cu = is_gpu && is_full_profile && contains_any(to_lower(name), {"gfx10", "gfx11", "gfx12"});
+            const bool amd_ipc_4 = is_gpu && contains_any(to_lower(name), {"gfx11", "gfx12", "gfx942", "gfx950"});
+            if(amd_dual_cu) compute_units *= 2u;
+            if(amd_ipc_4) ipc = 4u;
+            cores_per_cu = is_gpu ? 64.0f : 0.5f;
+            
+            // AMD Board-Name abfragen falls Extension vorhanden
+            std::string amd_device_name;
+            try {
+              char board_name[256] = {0};
+              if (this->info.cl_device.getInfo(0x4038, &board_name) == CL_SUCCESS) {
+                amd_device_name = trim(std::string(board_name));
+              }
+            } catch(...) {} // 0x4038 = CL_DEVICE_BOARD_NAME_AMD
+              if(is_gpu && amd_device_name.length() > 0u) this->info.name = amd_device_name;
+        } 
+        else if(vendor_id == 0x8086) { // Intel GPU/CPU
+            cl_uint intel_device_ip_version = 0;
+            try { this->info.cl_device.getInfo(0x425B, &intel_device_ip_version); } catch(...) {} // 0x425B = CL_DEVICE_IP_VERSION_INTEL
+            uint intel_device_ip_version_clean = (uint)intel_device_ip_version & 0xFFFFC03Fu;
+            uint intel_compute_capability = 100000u * (intel_device_ip_version_clean >> 22) + 100u * ((intel_device_ip_version_clean >> 14) & 0xFFu) + (intel_device_ip_version_clean & 0x3Fu);
+            const bool intel_16_cores_per_cu = (intel_compute_capability >= 1206000u && intel_compute_capability < 1207000u) || (intel_compute_capability >= 2000000u);
+            cores_per_cu = is_gpu ? (intel_16_cores_per_cu ? 16.0f : 8.0f) : 0.5f;
+            
+            if(is_gpu && !uses_ram) {
+                this->info.memory = (uint)((this->info.cl_device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() * 50ull / 49ull) / 1048576ull);
+            }
+        } 
+        else if(vendor_id == 0x10DE || vendor_id == 0x13B5) { // Nvidia GPU/CPU
+            uint nvidia_compute_capability = 0;
+            if(is_gpu) {
+                cl_uint major = 0, minor = 0;
+                try { this->info.cl_device.getInfo(0x400c, &major); } catch(...) {} // CL_DEVICE_COMPUTE_CAPABILITY_MAJOR_NV
+                try { this->info.cl_device.getInfo(0x400d, &minor); } catch(...) {} // CL_DEVICE_COMPUTE_CAPABILITY_MINOR_NV
+                nvidia_compute_capability = 10u * (uint)major + (uint)minor;
+            }
+            const bool nvidia__32_cores_per_cu = (nvidia_compute_capability < 30u);
+            const bool nvidia_192_cores_per_cu = (nvidia_compute_capability >= 30u && nvidia_compute_capability < 50u);
+            const bool nvidia__64_cores_per_cu = (nvidia_compute_capability >= 70u && nvidia_compute_capability <= 80u) || nvidia_compute_capability == 60u;
+            cores_per_cu = is_gpu ? (nvidia__32_cores_per_cu ? 32.0f : nvidia_192_cores_per_cu ? 192.0f : nvidia__64_cores_per_cu ? 64.0f : 128.0f) : 1.0f;
+        } 
+        else if(vendor_id == 0x1027F00) { // Apple iGPU
+            cores_per_cu = 128.0f;
+        } 
+        else if(vendor_id == 0x1022 || vendor_id == 0x10006 || vendor_id == 0x6C636F70) { // x86 CPUs with PoCL
+            cores_per_cu = 0.5f;
+        } 
+        else if(contains(to_lower(vendor), "arm")) { // ARM
+            cores_per_cu = is_gpu ? 8.0f : 1.0f;
+        }
+
+        // 🛡️ INTEL CPU DRIVER FIX
+        // Wenn der Intel CPU Treiber 0 MHz zurückgibt, weichen wir auf einen stabilen Standard-Takt aus,
+        // damit die TFLOPs-Berechnung nicht 0 ergibt.
+        uint clock_freq = this->info.clock_frequency;
+        if (clock_freq == 0u && is_cpu) {
+            clock_freq = 3000u; // 3.0 GHz Heuristik-Fallback für Berechnungen
+        }
+
+        this->info.cores = (uint)((float)compute_units * cores_per_cu);
+        this->info.tflops = 1E-6f * (float)this->info.cores * (float)ipc * (float)clock_freq;
+    }
+
     auto t_end = std::chrono::high_resolution_clock::now();
     double d_info = std::chrono::duration<double>(t_end - t_queue).count();
     double g_end = std::chrono::duration<double>(t_end - t_start).count();
