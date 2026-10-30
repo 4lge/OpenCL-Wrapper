@@ -290,8 +290,34 @@ int main(int argc, char* argv[]) {
     
         physx_device.set_kernel_source(core_kernel);
 
-        
-        physx_device.compile_kernel(build_opts, false);
+
+                // =====================================================================
+        // 🚀 VERPACKTER COMPILER-AUFRUF GEGEN ABBRÜCHE
+        // =====================================================================
+        try {
+            physx_device.compile_kernel(build_opts, false);
+        } 
+        catch (const std::exception &e) {
+            std::cerr << "⚠️ [ocl_compiler] Exception waehrend compile_kernel: " << e.what() << "\n";
+            // Trotz Absturz: Versuche sofort das Log aus dem Treiber zu pressen!
+            cl_program = physx_device.get_cl_program();
+            if (device() != nullptr) {
+                size_t log_size = 0;
+                clGetProgramBuildInfo(cl_program(), device(), CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
+                if (log_size > 0) {
+                    std::vector<char> raw_log(log_size);
+                    clGetProgramBuildInfo(cl_program(), device(), CL_PROGRAM_BUILD_LOG, log_size, raw_log.data(), NULL);
+                    std::cerr << "\n=================== NATIVE OPENCL COMPILER LOG (FATAL) ===========\n"
+                              << raw_log.data()
+                              << "\n==================================================================\n\n";
+                    std::cerr.flush();
+                }
+            }
+            _exit(1); // Beende kontrolliert, damit R die Pipes ausliest!
+        }
+
+        cl_program = physx_device.get_cl_program();
+
         cl_program = physx_device.get_cl_program();
 
         // 📢 JETZT DIREKT: Log auslesen, solange das Device und Programm noch im Scope leben!
