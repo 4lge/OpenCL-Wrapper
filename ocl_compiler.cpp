@@ -292,23 +292,47 @@ int main(int argc, char* argv[]) {
 
         
         physx_device.compile_kernel(build_opts, false);
-
         cl_program = physx_device.get_cl_program();
+
+        // 📢 JETZT DIREKT: Log auslesen, solange das Device und Programm noch im Scope leben!
+        if (device() != nullptr) {
+            try {
+                std::string build_log = cl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
+                // Wenn das Log nicht komplett leer ist, sofort auf std::cerr rauswerfen
+                if (!build_log.empty() && build_log != "\n") {
+                    std::cerr << "\n=================== NATIVE OPENCL COMPILER LOG ===================\n"
+                              << build_log
+                              << "==================================================================\n\n";
+                    std::clog.flush(); // Erzwinge ungepuffertes Schreiben auf OS-Ebene
+                    std::cerr.flush();
+                }
+            } catch (...) {
+                // Fallback über rohe C-API, falls die C++ Wrapper-Klasse zickt
+                size_t log_size = 0;
+                clGetProgramBuildInfo(cl_program(), device(), CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
+                if (log_size > 0) {
+                    std::vector<char> raw_log(log_size);
+                    clGetProgramBuildInfo(cl_program(), device(), CL_PROGRAM_BUILD_LOG, log_size, raw_log.data(), NULL);
+                    std::cerr << "\n=================== NATIVE OPENCL COMPILER LOG (RAW) =============\n"
+                              << raw_log.data()
+                              << "\n==================================================================\n\n";
+                    std::cerr.flush();
+                }
+            }
+        }
 
         // Falls wir nicht im AMD Sonderweg waren, stellen wir sicher, dass Ordner existieren
         size_t final_slash = output_path.find_last_of("/\\");
         if (final_slash != std::string::npos) {
             std::string target_dir = output_path.substr(0, final_slash);
 #ifdef _WIN32
-            // Windows-kompatibles Erstellen von Ordnern (cmd.exe schluckt kein -p)
-            // Wir ersetzen Slashes durch Backslashes für den System-Aufruf
             std::replace(target_dir.begin(), target_dir.end(), '/', '\\');
             std::string mkdir_cmd = "if not exist \"" + target_dir + "\" mkdir \"" + target_dir + "\"";
 #else
             std::string mkdir_cmd = "mkdir -p " + target_dir;
 #endif
-                int r2 = std::system(mkdir_cmd.c_str()); 
-            (void)r2; // Silences GCC warn_unused_result
+            int r2 = std::system(mkdir_cmd.c_str()); 
+            (void)r2; 
         }
 
         auto bin_data = cl_program.getInfo<CL_PROGRAM_BINARIES>();
@@ -317,16 +341,13 @@ int main(int argc, char* argv[]) {
             out.write(reinterpret_cast<const char*>(bin_data[0].data()), bin_data[0].size());
             out.close();
             
-            //std::cout << "SUCCESS" << std::endl << std::flush;
             std::cerr << std::flush;
             std::cout << std::flush;
             
             #if defined(OPENCLEAR_R_BUILD)
-              // Innerhalb der R-DLL: Sicherer Rücksprung, um R nicht zu killen!
               return(0); 
             #else
-              // Im Standalone CLI-Compiler (.exe): Sicherer Hardware-Schnitt-Exit!
-              _exit(0); 
+              _exit(0); // Jetzt sicher, da das Log oben bereits über std::cerr.flush() rausgepresst wurde!
             #endif
         } else {
             std::cerr << "Fehler: Keine gueltigen OpenCL-Binaries vom Treiber zurueckgegeben.\n" << std::flush;
