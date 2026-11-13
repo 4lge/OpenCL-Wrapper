@@ -5,6 +5,10 @@
 #include <thread>
 #include <chrono>
 #include <sys/stat.h>
+#ifdef __APPLE__
+#include <sys/utsname.h>
+#endif
+
 #define WORKGROUP_SIZE 64 // needs to be 64 to fully use AMD GPUs
 //#define PTX
 #define LOG
@@ -279,6 +283,19 @@ inline vector<Device_Info> get_devices(const bool print_info=true) { // returns 
     cl_platforms[i].getDevices(CL_DEVICE_TYPE_ALL, &cl_devices);
     //cl::Context cl_context(cl_devices); // same cl::Context for all devices (allocates extra VRAM on all other unused Nvidia GPUs)
     for(uint j=0u; j<(uint)cl_devices.size(); j++) {
+#ifdef __APPLE__
+      // Ab macOS 11 Big Sur (Darwin Kernel Major >= 20) liefert OpenCL auf der CPU
+      // nur noch CVMS-Pointer-Binaries, die prozessübergreifend nicht ladbar sind.
+      if (cl_devices[j].getInfo<CL_DEVICE_TYPE>() == CL_DEVICE_TYPE_CPU) {
+        struct utsname sysinfo;
+        if (uname(&sysinfo) == 0) {
+          int darwin_major = std::atoi(sysinfo.release);
+          if (darwin_major >= 20) { // Darwin 20 = macOS 11.0 Big Sur
+            continue;
+          }
+        }
+      }
+#endif	    
       cl::Context cl_context(cl_devices[j]); // separate cl::Context for each device
       Device_Info info(cl_devices[j], cl_context, id++);
       info.platform_idx = (int)i; // 🚀 Echter Plattform-Treiber-Index
