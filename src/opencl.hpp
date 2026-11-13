@@ -917,7 +917,7 @@ try {
 
     bool build_finished = false;
 
-    std::thread t([=, &build_finished, &error, this]() {
+    std::thread t([=, &build_finished, &error]() {
       error = cl_program.build({ this->info.cl_device }, final_options.c_str());
       build_finished = true;
     });
