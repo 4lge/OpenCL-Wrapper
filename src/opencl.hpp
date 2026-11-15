@@ -916,11 +916,16 @@ try {
     //std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 2. Starte asynchrones cl_program.build()..." << std::endl << std::flush;
 
     bool build_finished = false;
+// 1. Lokale Kopien der benötigten Klassenvariablen anlegen (Beispiel)
+auto local_program = this->program; 
+auto local_device  = this->device_id;
 
-    std::thread t([=, &build_finished, &error]() {
+// 2. Explizit nur diese lokalen Variablen per Kopie übergeben
+std::thread t([local_program, local_device, &build_finished, &error]() {
       error = cl_program.build({ this->info.cl_device }, final_options.c_str());
       build_finished = true;
-    });
+});
+
 
     t.detach();
 
