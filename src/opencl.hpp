@@ -917,17 +917,21 @@ try {
 
     bool build_finished = false;
 
-    std::thread t([cl_program = this->cl_program, cl_device = this->info.cl_device, final_options, &build_finished, &error]() {
-      error = cl_program.build({ cl_device }, final_options.c_str());
+    // 🛡️ C++20 EXPLIZIT & LEICHTGEWICHTIG: Nutzt den stabilen Zeiger über 'this'
+    std::thread t([this, final_options, &build_finished, &error]() {
+      error = this->cl_program.build({ this->info.cl_device }, final_options.c_str());
       build_finished = true;
     });
-
-    t.detach();
 
     while (!build_finished) {
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
-
+    
+    // 🛡️ DER ABSOLUTE RETTER: Löst den Thread geordnet auf, nachdem er fertig ist
+    if (t.joinable()) {
+      t.join();
+    }
+    
     //std::cout << "⏱️ [JIT-COMPILE-SUBPROFILE] 3. cl_program.build() beendet. Erwische Windows-Scheduler..." << std::endl << std::flush;
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
 #else
