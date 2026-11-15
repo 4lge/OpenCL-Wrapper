@@ -917,12 +917,10 @@ try {
 
     bool build_finished = false;
 
-    std::thread t([program = program, device_id = device_id, &build_finished, &error]() {
-      error = cl_program.build({ this->info.cl_device }, final_options.c_str());
+    std::thread t([cl_program = this->cl_program, cl_device = this->info.cl_device, final_options, &build_finished, &error]() {
+      error = cl_program.build({ cl_device }, final_options.c_str());
       build_finished = true;
     });
-
-
 
     t.detach();
 
