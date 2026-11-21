@@ -381,6 +381,7 @@ private:
   string math_library_path;
   bool kernel_loaded = false;
   bool kernel_compiled = false;
+  string build_options_ = "";
 
     inline string enable_device_capabilities() const { 
       cl::Platform plat(info.cl_device.getInfo<CL_DEVICE_PLATFORM>());
@@ -816,6 +817,9 @@ try {
   inline void set_compiler_binary(const std::string& binary) { this->compiler_binary = binary; }
   inline std::string get_compiler_binary() const { return this->compiler_binary; }
 
+inline void set_build_options(const std::string& opts) { this->build_options_ = opts; }
+inline std::string get_build_options() const { return this->build_options_; }
+
   // 🚀 NEU: Ermöglicht das direkte Injizieren von Kernel-Code als RAM-String!
   inline void set_kernel_source(const std::string& source_code) {
     this->kernel_code = source_code;
@@ -1057,6 +1061,11 @@ try {
 #else
     std::string clean_basename = base_filename + "_double";
 #endif
+    if (this->build_options_.find("USE_FAST_RNG") != std::string::npos) {
+      clean_basename += "_xor";
+    } else {
+      clean_basename += "_mt";
+    }
     this->binary_cache_path = target_dir + "/" + clean_basename + ".bin";
   }
 
@@ -1287,7 +1296,9 @@ try {
       if (!this->math_library_path.empty()) {
         compiler_cmd += " -l " + this->math_library_path;
       }
-
+      if (!this->build_options_.empty()) {
+          compiler_cmd += " -o \"" + this->build_options_ + "\"";
+      }
       
       // =========================================================================
       // 🏎️ DET TURBO-TUNNEL: Reiche das -f Flag bitscharf an den ocl_compiler weiter!

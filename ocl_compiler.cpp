@@ -176,6 +176,11 @@ int main(int argc, char* argv[]) {
     std::string raw_file = (last_slash == std::string::npos) ? input_path : input_path.substr(last_slash + 1);
     std::string base_filename = raw_file.substr(0, raw_file.find_last_of("."));
     std::string filename = base_filename + (force_float ? "_float" : "_double");
+    if (build_opts.find("USE_FAST_RNG") != std::string::npos) {
+       filename += "_xor";
+    } else {
+       filename += "_mt";
+    }
 
     // 🎯 ÄUẞERE VARIABLEN: Für den Scope sichtbar herausgezogen
     cl::Device device;
@@ -260,7 +265,7 @@ int main(int argc, char* argv[]) {
             std::string clang_cmd = "/opt/rocm/llvm/bin/clang -x cl -cl-std=CL2.0 " 
                                     "-Xclang -finclude-default-header " 
                                     "-target amdgcn-amd-amdhsa -mcpu=" + final_device_folder + 
-                                    " " + tmp_cl_source + " -o " + output_path;
+                                    " " + build_opts + " " + tmp_cl_source + " -o " + output_path;
 
             //std::cout << "🔄 [BACKEND-EXEC] " << clang_cmd << std::endl;
             
