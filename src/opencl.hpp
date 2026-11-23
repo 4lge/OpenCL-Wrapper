@@ -1236,6 +1236,18 @@ inline std::string get_build_options() const { return this->build_options_; }
           //std::cout << "🔄 [MAKE-REBUILD] OpenCL-Quellcode wurde veraendert! Erwische veraltetes Binary..." << std::endl << std::flush;
         }
       }
+      if (!source_is_newer && !this->math_library_path.empty()) {
+#ifdef _WIN32
+        struct _stat stat_lib;
+        int lib_res = _stat(this->math_library_path.c_str(), &stat_lib);
+#else
+        struct stat stat_lib;
+        int lib_res = stat(this->math_library_path.c_str(), &stat_lib);
+#endif
+        if (lib_res == 0 && bin_res == 0 && stat_lib.st_mtime > stat_binary.st_mtime) {
+          source_is_newer = true;
+        }
+      }      
     }
 
     // 🚀 INTELLIGENTE WARMSTART-WEICHE
