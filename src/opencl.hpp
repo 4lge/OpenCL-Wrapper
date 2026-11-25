@@ -882,13 +882,11 @@ inline std::string get_build_options() const { return this->build_options_; }
 
     compiled_code = enable_device_capabilities() + "\n" + "\n" + c_code + "\n" + kernel_code;
 
-    // =========================================================================
-    // 🚀 NEU: DER UNFEHLBARE OPENCL-C QUELLTEXT-DRUCKER (Debug-Schnittstelle)
-    // =========================================================================
-    //std::cout << "\n=================== GENERATED OPENCL C CODE ===================\n"
-    //          << compiled_code
-    //          << "\n===============================================================\n\n"
-    //          << std::flush;
+    if (std::getenv("OPENCLEAR_DEBUG_KERNEL")) {
+        std::ofstream debug_file("debug_kernel.cl");
+        debug_file << compiled_code;
+        debug_file.close();
+    }
 
 
     cl_source.push_back({ compiled_code.c_str(), compiled_code.length() });
